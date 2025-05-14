@@ -2,15 +2,13 @@
 export default async function handler(req, res) {
     const { oa, o, s } = req.query;
   
-    // Ստուգում ենք գաղտնի սլովոն
-    if (s !== 'abc123') {
+    if (s !== process.env.SECOND_SECRET) {
       return res.status(403).send('Invalid signature');
     }
   
-    // Այստեղ կարող ես ավելացնել քո պատվերի ստուգման/փոփոխման լոգիկան
-    console.log(`Payment success for Order ID: ${o}, Amount: ${oa}`);
-  
-    // Պատասխան ուղարկում Freekassa-ին
+    console.log(`✅ Payment received: Order ID = ${o}, Amount = ${oa}`);
     res.status(200).send('OK');
   }
+  
+  
   
