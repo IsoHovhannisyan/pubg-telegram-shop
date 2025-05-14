@@ -1,4 +1,3 @@
-// api/fk.js
 export default async function handler(req, res) {
     const { oa, o, s } = req.query;
   
@@ -7,8 +6,11 @@ export default async function handler(req, res) {
     }
   
     console.log(`✅ Payment received: Order ID = ${o}, Amount = ${oa}`);
-    res.status(200).send('OK');
+  
+    res.setHeader('Content-Type', 'text/html');
+    res.status(200).send('<html><body>OK</body></html>');
   }
+  
   
   
   
