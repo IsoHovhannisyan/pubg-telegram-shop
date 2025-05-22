@@ -1,0 +1,25 @@
+{
+  "name": "admin-api",
+  "version": "1.0.0",
+  "main": "adminApi.js",
+  "scripts": {
+    "start": "node adminApi.js",
+    "dev": "nodemon adminApi.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.9.0",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "form-data": "^4.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.0",
+    "sharp": "^0.34.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
