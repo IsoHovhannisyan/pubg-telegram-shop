@@ -15,6 +15,7 @@ import Login from './pages/Login';
 import PrivateRoute from './components/PrivateRoute';
 import Settings from './pages/Settings';
 import UcCodes from './pages/UcCodes';
+import Referrals from './pages/Referrals';
 import axios from 'axios';
 
 export default function App() {
@@ -59,6 +60,14 @@ export default function App() {
                 Заказы
               </NavLink>
               <NavLink
+                to="/referrals"
+                className={({ isActive }) =>
+                  isActive ? "underline text-blue-700 font-semibold" : "hover:underline"
+                }
+              >
+                👥 Рефералы
+              </NavLink>
+              <NavLink
                 to="/activator"
                 className={({ isActive }) =>
                   isActive ? "underline text-blue-700 font-semibold" : "hover:underline"
@@ -80,7 +89,7 @@ export default function App() {
                   isActive ? "underline text-blue-700 font-semibold" : "hover:underline"
                 }
               >
-                💾 UC Կոդեր
+                💾 UC-коды
               </NavLink>
               <NavLink
                 to="/settings"
@@ -122,6 +131,7 @@ export default function App() {
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/products" element={<PrivateRoute><Products /></PrivateRoute>} />
             <Route path="/orders" element={<PrivateRoute><Orders /></PrivateRoute>} />
+            <Route path="/referrals" element={<PrivateRoute><Referrals /></PrivateRoute>} />
             <Route path="/activator" element={<PrivateRoute><Activator /></PrivateRoute>} />
             <Route path="/manual" element={<PrivateRoute><ManualPanel /></PrivateRoute>} />
             <Route path="/uc-codes" element={<PrivateRoute><UcCodes /></PrivateRoute>} />

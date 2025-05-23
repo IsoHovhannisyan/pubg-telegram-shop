@@ -142,12 +142,12 @@ const [form, setForm] = useState({
 
 const sendPreviewWithImage = async () => {
   if (!form.image) {
-    alert("⚠️ Խնդրում ենք ընտրել նկար նախադիտման համար");
+    alert("⚠️ Пожалуйста, выберите изображение для предпросмотра");
     return;
   }
 
   if (!form.telegramId) {
-    alert("⚠️ Խնդրում ենք մուտքագրել Telegram ID նախադիտման համար");
+    alert("⚠️ Пожалуйста, введите Telegram ID для предпросмотра");
     return;
   }
 
@@ -159,8 +159,8 @@ const sendPreviewWithImage = async () => {
   formData.append("type", form.type || "manual");
   formData.append("status", form.active ? "active" : "inactive");
   formData.append("image", form.image);
-  formData.append("telegramId", form.telegramId);  // ✅ վերցնում ենք input-ից
-  formData.append("isPreview", "true");            // ✅ preview flag
+  formData.append("telegramId", form.telegramId);
+  formData.append("isPreview", "true");
 
   try {
     await API.post(`${API_URL}/admin/products`, formData, {
@@ -169,177 +169,151 @@ const sendPreviewWithImage = async () => {
         "Content-Type": "multipart/form-data",
       },
     });
-    alert("✅ Preview ուղարկվել է Telegram-ով");
+    alert("✅ Предпросмотр отправлен через Telegram");
   } catch (err) {
-    console.error("❌ Նախադիտման սխալ:", err);
-    alert("❌ Սխալ՝ չհաջողվեց ուղարկել preview");
+    console.error("❌ Ошибка предпросмотра:", err);
+    alert("❌ Ошибка: не удалось отправить предпросмотр");
   }
 };
 
    return (
-    <div className="p-4 max-w-4xl">
-      <h2 className="text-2xl font-bold mb-4">🛒 Управление товарами</h2>
+    <div className="min-h-screen p-4 bg-gradient-to-br from-blue-50 via-white to-pink-50">
+      <h2 className="text-4xl font-extrabold mb-8 text-center text-blue-900 drop-shadow">🛒 Управление товарами</h2>
       {/* Форма добавления / редактирования */}
-      <form onSubmit={handleSubmit} className="space-y-4 mb-6">
-        <div className="grid grid-cols-2 gap-4">
-          <input
-            name="name"
-            value={form.name}
-            onChange={handleChange}
-            placeholder="Название"
-            className="input"
-            required
-          />
-          <input
-            name="price"
-            value={form.price}
-            onChange={handleChange}
-            placeholder="Цена"
-            type="number"
-            className="input"
-            required
-          />
-          <input
-            name="stock"
-            value={form.stock}
-            onChange={handleChange}
-            placeholder="Количество"
-            type="number"
-            className="input"
-            required
-          />
-          <select
-            name="category"
-            value={form.category}
-            onChange={handleChange}
-            className="input"
-          >
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>
-                {categoryLabels[cat]}
-              </option>
-            ))}
-          </select>
-
-          <label className="flex items-center gap-2">
+      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-8 mb-10 max-w-3xl mx-auto space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block mb-1 font-medium">Название</label>
+            <input
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              placeholder="Название"
+              className="w-full border rounded px-3 py-2 mb-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="block mb-1 font-medium">Цена</label>
+            <input
+              name="price"
+              value={form.price}
+              onChange={handleChange}
+              placeholder="Цена"
+              className="w-full border rounded px-3 py-2 mb-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="block mb-1 font-medium">Сток</label>
+            <input
+              name="stock"
+              value={form.stock}
+              onChange={handleChange}
+              placeholder="Сток"
+              className="w-full border rounded px-3 py-2 mb-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="block mb-1 font-medium">Категория</label>
+            <select
+              name="category"
+              value={form.category}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2 mb-2"
+              required
+            >
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {categoryLabels[cat]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block mb-1 font-medium">Telegram ID</label>
+            <input
+              name="telegramId"
+              value={form.telegramId}
+              onChange={handleChange}
+              placeholder="Telegram ID"
+              className="w-full border rounded px-3 py-2 mb-2"
+            />
+          </div>
+          <div>
+            <label className="block mb-1 font-medium">Изображение</label>
+            <input
+              type="file"
+              name="image"
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2 mb-2"
+            />
+          </div>
+          <div>
+            <label className="block mb-1 font-medium">Активен</label>
             <input
               type="checkbox"
               name="active"
               checked={form.active}
               onChange={handleChange}
+              className="mb-2"
             />
-            Активен
-          </label>
-
-          {["cars", "costumes"].includes(form.category) && (
-            <input
-              type="file"
-              name="image"
-              accept="image/*"
-              onChange={handleChange}
-              className="input"
-            />
-          )}
-          {preview && (
-            <img
-              src={preview}
-              alt="Preview"
-              className="w-32 h-32 object-cover rounded border mt-2"
-            />
-          )}
+          </div>
         </div>
-
-        <button
-          type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded"
-        >
-          {editingId ? "Обновить товар" : "Добавить товар"}
-        </button>
-        <button
-          type="button"
-          className="bg-purple-600 text-white px-4 py-2 rounded ml-2"
-          onClick={sendPreviewWithImage}
-        >
-          📤 Просмотр в Telegram
-        </button>
-        <input
-          name="telegramId"
-          value={form.telegramId || ""}
-          onChange={handleChange}
-          placeholder="Telegram ID (նախադիտման համար)"
-          className="input col-span-2"
-        />
+        <div className="flex flex-wrap gap-4 mt-4">
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
+          >
+            {editingId ? "Сохранить изменения" : "Добавить товар"}
+          </button>
+          <button
+            type="button"
+            onClick={sendPreviewWithImage}
+            className="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition"
+          >
+            Отправить предпросмотр
+          </button>
+        </div>
       </form>
-        {/*filter */}
-      <div className="mb-4">
-        <label className="mr-2 font-medium">Фильтр по категории:</label>
-        <select
-          className="input"
-          value={filterCategory}
-          onChange={(e) => {
-            console.log("✅ Selected filter:", e.target.value);
-            setFilterCategory(e.target.value);
-          }}
-        >
-          <option value="ALL">Все</option>
-          {categories.map((cat) => (
-            <option key={cat} value={cat}>
-              {categoryLabels[cat]}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Список товаров (с фильтрацией) */}
-      <div className="space-y-2">
-        {products
-          .filter((p) => {
-            const productCat = (p.category || "").toUpperCase().trim();
-            const filterCat = filterCategory.toUpperCase().trim();
-            return filterCat === "ALL" || productCat === filterCat;
-            })
-          .map((product) => (
-            <div
-              key={product.id}
-              className="p-3 border rounded flex justify-between items-center"
-            >
-              <div>
-                <div className="font-semibold">{product.name}</div>
-                <div className="text-sm text-gray-600">
-                  {categoryLabels[product.category] || product.category} |{" "}
-                  {product.price} ₽ | {product.stock} шт
-                </div>
-                <div
-                  className={`text-xs mt-1 ${
-                    product.status === "active" ? "text-green-500" : "text-red-500"
-                  }`}
+      {/* Список товаров */}
+      <div className="bg-white rounded-2xl shadow-xl p-8">
+        <h3 className="text-2xl font-semibold mb-6 text-blue-800">Список товаров</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {products.map((product) => (
+            <div key={product.id} className="border rounded-xl p-6 shadow bg-blue-50 flex flex-col gap-2 hover:shadow-lg transition">
+              <h4 className="font-semibold text-blue-900">{product.name}</h4>
+              <p>Цена: <span className="font-bold">{product.price} ₽</span></p>
+              <p>Сток: <span className="font-bold">{product.stock}</span></p>
+              <p>Категория: <span className="font-bold">{categoryLabels[product.category]}</span></p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <button
+                  onClick={() => startEdit(product)}
+                  className="bg-yellow-500 text-white px-4 py-1 rounded-lg hover:bg-yellow-600 transition text-xs"
                 >
-                  {product.status === "active" ? "Активен" : "Неактивен"}
-                </div>
-                <div className="flex gap-4 mt-2">
-                  <button
-                    onClick={() => startEdit(product)}
-                    className="text-blue-600 text-sm underline"
+                  Редактировать
+                </button>
+                <button
+                  onClick={() => deleteProduct(product.id)}
+                  className="bg-red-600 text-white px-4 py-1 rounded-lg hover:bg-red-700 transition text-xs"
+                >
+                  Удалить
+                </button>
+                {product.image && (
+                  <a
+                    href={product.image}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-green-500 text-white px-4 py-1 rounded-lg hover:bg-green-600 transition text-xs"
                   >
-                    Редактировать
-                  </button>
-                  <button
-                    onClick={() => deleteProduct(product.id)}
-                    className="text-red-600 text-sm underline"
-                  >
-                    Удалить
-                  </button>
-                </div>
+                    Смотреть
+                  </a>
+                )}
               </div>
-              {product.imageUrl && (
-                <img
-                  src={product.imageUrl}
-                  alt="cover"
-                  className="w-12 h-12 object-cover rounded"
-                />
-              )}
             </div>
           ))}
+        </div>
       </div>
     </div>
   );

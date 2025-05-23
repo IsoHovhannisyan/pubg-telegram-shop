@@ -12,6 +12,7 @@ module.exports = {
     orders: "📥 Мои заказы",
     popularity: "📢 Популярность",
     shop: '🛍 Магазин',
+    referrals: '👥 Рефералы',
   },
   buttons: {
     open_catalog: "📦 Открыть каталог",

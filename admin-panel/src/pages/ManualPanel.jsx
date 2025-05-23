@@ -26,7 +26,7 @@ export default function ManualPanel() {
       });
       setOrders(res.data);
     } catch (err) {
-      console.error("Ошибка при получении заказов:", err);
+      console.error("❌ Ошибка при получении заказов:", err);
     } finally {
       setLoading(false);
     }
@@ -39,7 +39,7 @@ export default function ManualPanel() {
       });
       setProductsList(res.data);
     } catch (err) {
-      console.error("Ошибка при получении товаров:", err);
+      console.error("❌ Ошибка при получении товаров:", err);
     }
   };
 
@@ -54,8 +54,8 @@ export default function ManualPanel() {
       );
       fetchOrders();
     } catch (err) {
-      console.error("Ошибка при обновлении статуса:", err);
-      alert("Не удалось обновить статус");
+      console.error("❌ Ошибка при обновлении статуса:", err);
+      alert("Не удалось обновить статус заказа");
     }
   };
 
@@ -85,53 +85,59 @@ export default function ManualPanel() {
   });
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">🧑‍💼 Ручная доставка</h2>
-
+    <div className="min-h-screen p-6 bg-gradient-to-br from-blue-50 via-white to-pink-50">
+      <h2 className="text-4xl font-extrabold mb-8 text-center text-blue-900 drop-shadow">🧑‍💼 Ручная доставка</h2>
       {loading ? (
-        <p>Загрузка...</p>
+        <p className="text-center text-lg text-blue-700 animate-pulse">Загрузка...</p>
       ) : manualOrders.length === 0 ? (
-        <p className="text-gray-500">Нет заказов на ручную обработку</p>
+        <p className="text-center text-gray-400 text-xl">Нет заказов для ручной обработки</p>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           {manualOrders.map((order) => {
             const products = Array.isArray(order.products)
               ? order.products
               : JSON.parse(order.products || "[]");
 
             return (
-              <div key={order.id} className="p-4 border rounded shadow">
-                <div className="mb-1 font-semibold">
-                  Заказ #{order.id} — PUBG ID: <b>{order.pubg_id || "-"}</b>
+              <div key={order.id} className="bg-white border border-blue-100 rounded-2xl shadow-xl p-6 flex flex-col justify-between transition-transform hover:scale-[1.025] hover:shadow-2xl">
+                <div>
+                  <div className="mb-2 font-bold text-lg text-blue-800 flex items-center gap-2">
+                    <span className="inline-block bg-blue-100 text-blue-700 rounded px-2 py-0.5 text-xs font-semibold">Заказ #{order.id}</span>
+                    <span className="ml-auto text-xs text-gray-400">{order.time ? new Date(order.time).toLocaleString() : "-"}</span>
+                  </div>
+                  <div className="mb-1 text-sm text-gray-700">
+                    <span className="font-medium">PUBG ID:</span> <b>{order.pubg_id || "-"}</b>
+                  </div>
+                  <div className="mb-1 text-sm text-gray-700">
+                    <span className="font-medium">Никнейм:</span> {order.nickname || "-"}
+                  </div>
+                  <ul className="text-sm mb-3 list-disc pl-5 max-h-24 overflow-y-auto pr-2 text-gray-800">
+                    {products.map((p, i) => (
+                      <li key={i}>
+                        {getProductNameById(p.id)} × {p.qty}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mb-3">
+                    <span className="text-xs font-semibold mr-2">Статус:</span>
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold shadow-sm
+                      ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
+                      ${order.status === 'manual_processing' ? 'bg-blue-100 text-blue-800' : ''}
+                      ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : ''}
+                      ${order.status === 'error' ? 'bg-red-100 text-red-800' : ''}
+                    `}>
+                      {statusLabels[order.status] || order.status}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-700 mb-1">
-                  Ник: {order.nickname || "-"}
-                </div>
-                <div className="text-xs text-gray-500 mb-1">
-                  Время:{" "}
-                  {order.time ? new Date(order.time).toLocaleString() : "-"}
-                </div>
-                <ul className="text-sm mb-2 list-disc pl-4 max-h-32 overflow-y-auto pr-2">
-                  {products.map((p, i) => (
-                    <li key={i}>
-                      {getProductNameById(p.id)} × {p.qty}
-                    </li>
-                  ))}
-                </ul>
-                <div className="text-sm mb-2">
-                  Статус:{" "}
-                  <span className="font-medium">
-                    {statusLabels[order.status] || order.status}
-                  </span>
-                </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mt-2">
                   <button
                     onClick={() => {
                       if (window.confirm("Отметить заказ как 'Менеджер'?")) {
                         updateStatus(order.id, "manual_processing");
                       }
                     }}
-                    className="px-3 py-1 bg-yellow-200 text-yellow-800 rounded"
+                    className="flex-1 px-3 py-2 bg-blue-100 text-blue-800 rounded-lg font-semibold hover:bg-blue-200 transition"
                   >
                     Менеджер
                   </button>
@@ -141,7 +147,7 @@ export default function ManualPanel() {
                         updateStatus(order.id, "delivered");
                       }
                     }}
-                    className="px-3 py-1 bg-green-200 text-green-800 rounded"
+                    className="flex-1 px-3 py-2 bg-green-100 text-green-800 rounded-lg font-semibold hover:bg-green-200 transition"
                   >
                     Доставлен
                   </button>
@@ -151,7 +157,7 @@ export default function ManualPanel() {
                         updateStatus(order.id, "error");
                       }
                     }}
-                    className="px-3 py-1 bg-red-200 text-red-800 rounded"
+                    className="flex-1 px-3 py-2 bg-red-100 text-red-800 rounded-lg font-semibold hover:bg-red-200 transition"
                   >
                     Ошибка
                   </button>

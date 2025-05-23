@@ -21,6 +21,7 @@ const { handleUserIdSubmission } = require('./handlers/sendOrderToCorrectTarget'
 const costumesHandler = require('./handlers/xcostumes');
 const getShopStatus = require('./utils/getShopStatus');
 const checkShopOpen = require('./middlewares/checkShopOpen');
+const referralsHandler = require('./handlers/referrals');
 
 const getLang = require('./utils/getLang');
 
@@ -36,7 +37,13 @@ bot.use(async (ctx, next) => {
 
 
 // 📦 start-команда
-bot.start(startHandler);
+bot.start(async (ctx) => {
+  const lang = await getLang(ctx);
+  await require('./handlers/start')(ctx);
+  // После выбора языка, показываем главное меню с кнопкой рефералов
+  // (логика показа меню после выбора языка уже есть в lang callback, но дублируем для старта)
+  // (если меню показывается только после выбора языка, то этот блок можно не дублировать)
+});
 
 // 📚 Команды
 bot.command('cart', cartHandler.showCart);
@@ -51,12 +58,13 @@ bot.hears(async (text, ctx) => {
       [Markup.button.callback('💎 UC', 'open_uc_catalog')],
       [Markup.button.callback('📈 Популярность', 'open_popularity_catalog')],
       [Markup.button.callback('🚗 Машины', 'category:cars')],
-      [Markup.button.callback('🎭 X-Костюмы', 'category:xcostumes')],
+      [Markup.button.callback('🎭 X-Костюмы', 'category:xcostumes')]
     ]));
   }
 
   if (text === lang.menu.cart) return cartHandler.showCart(ctx);
   if (text === lang.menu.orders) return orderHandler(ctx);
+  if (text === lang.menu.referrals) return referralsHandler(ctx);
 });
 
 // 🟡 Централизованная обработка callback_query
@@ -78,7 +86,8 @@ bot.on('callback_query', async (ctx) => {
     await ctx.reply(langFile.start.welcome, Markup.keyboard([
       [langFile.menu.shop],
       [langFile.menu.orders],
-      [langFile.menu.cart]
+      [langFile.menu.cart],
+      [langFile.menu.referrals]
     ]).resize());
     return ctx.answerCbQuery("✅ Язык изменён");
   }
@@ -143,6 +152,8 @@ bot.on('callback_query', async (ctx) => {
     "back_to_catalog",
     "go_back"
   ].includes(data)) return cartHandler.callbackQuery(ctx);
+
+  if (data === 'open_referrals') return referralsHandler(ctx);
 });
 
 // 🧾 Ввод PUBG ID

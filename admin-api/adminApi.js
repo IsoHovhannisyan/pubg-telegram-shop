@@ -23,7 +23,7 @@ const settingsRoutes = require('./routes/settings');
 const referralsRoutes = require("./routes/referrals");
 const freekassaCallback = require("./routes/freekassaCallback");
 const setupAdminRoute = require('./routes/setupAdmin');
-
+const stockRoutes = require('./routes/stock');
 
 const userRoutes = require('./routes/users');
 
@@ -39,6 +39,7 @@ app.use('/admin/stats', verifyToken, statsRoutes);
 app.use('/admin/settings', settingsRoutes);
 app.use("/admin", referralsRoutes);             // Ռեֆերալներ
 app.use("/api", freekassaCallback);
+app.use('/admin/stock', verifyToken, stockRoutes);
 
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 

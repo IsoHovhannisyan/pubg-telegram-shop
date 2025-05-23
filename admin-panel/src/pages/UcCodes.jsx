@@ -35,15 +35,15 @@ export default function UcCodes() {
 
       const data = await res.json();
       if (data.success) {
-        setMessage("✅ Կոդը հաջողությամբ ավելացվեց");
+        setMessage("✅ Код успешно добавлен");
         setCode("");
         fetchTestCodes();
       } else {
-        setMessage("❌ Սխալ առաջացավ․ " + (data.error || "Չհաջողվեց"));
+        setMessage("❌ Произошла ошибка: " + (data.error || "Не удалось"));
       }
     } catch (err) {
       console.error("❌ Խնդիր կա հարցման ժամանակ:", err);
-      setMessage("❌ Սերվերի սխալ․ փորձիր նորից");
+      setMessage("❌ Ошибка сервера. Попробуйте еще раз");
     } finally {
       setLoading(false);
     }
@@ -64,73 +64,48 @@ export default function UcCodes() {
   }, []);
 
   return (
-    <div className="max-w-lg mx-auto mt-10 p-6 bg-white rounded-2xl shadow-md">
-      <h2 className="text-xl font-bold mb-4">➕ Ավելացնել UC կոդ</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block mb-1 font-medium">UC փաթեթ</label>
-          <select
-            className="w-full border p-2 rounded-xl"
-            value={productName}
-            onChange={(e) => setProductName(e.target.value)}
-            disabled={testMode} // ❗ Disable when in test mode
+    <div className="p-6 space-y-6 bg-gray-50">
+      <h2 className="text-3xl font-bold mb-4 text-center">💾 UC-коды</h2>
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-xl font-semibold mb-4">Добавить новый код</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block mb-1 font-medium">Код</label>
+            <input
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Введите код"
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
-            <option value="60uc">60uc</option>
-            <option value="325uc">325uc</option>
-            <option value="660uc">660uc</option>
-            <option value="1800uc">1800uc</option>
-            <option value="3850uc">3850uc</option>
-            <option value="8100uc">8100uc</option>
-          </select>
-        </div>
-        <div>
-          <label className="block mb-1 font-medium">UC redeem կոդ</label>
-          <input
-            type="text"
-            className="w-full border p-2 rounded-xl"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="ABCD-EFGH-IJKL"
-            required
-          />
-        </div>
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            checked={testMode}
-            onChange={() => setTestMode(!testMode)}
-            id="testModeToggle"
-          />
-          <label htmlFor="testModeToggle" className="text-sm">
-            🧪 Ավելացնել որպես փորձնական (test_uc)
-          </label>
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 w-full"
-        >
-          {loading ? "Ուղարկվում է..." : "Ավելացնել կոդ"}
-        </button>
-      </form>
-      {message && (
-        <div className="mt-4 text-center text-sm font-medium text-gray-700">
-          {message}
-        </div>
-      )}
-
-      {testCodes.length > 0 && (
-        <div className="mt-6">
-          <h3 className="text-lg font-bold mb-2">🧪 Test_uc կոդեր</h3>
-          <ul className="text-sm list-disc ml-5">
-            {testCodes.map((c, i) => (
-              <li key={i}>
-                {c.code} ({c.productName})
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+            Добавить
+          </button>
+        </form>
+      </div>
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-xl font-semibold mb-4">Список кодов</h3>
+        <ul className="space-y-2">
+          {testCodes.map((c) => (
+            <li key={c.id} className="flex justify-between items-center p-2 border rounded">
+              <span>{c.code} ({c.productName})</span>
+              <button
+                onClick={() => {
+                  // Implement the delete logic here
+                }}
+                className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
+              >
+                Удалить
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

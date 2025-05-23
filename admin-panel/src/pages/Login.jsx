@@ -8,7 +8,8 @@ const Login = ({ setToken }) => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = async () => {
+  const handleLogin = async (e) => {
+    e.preventDefault();
     try {
       const res = await axios.post('http://localhost:3001/admin/login', {
         username,
@@ -28,31 +29,40 @@ const Login = ({ setToken }) => {
   };
 
   return (
-    <div className="flex items-center justify-center h-screen bg-gray-100">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm">
-        <h2 className="text-2xl font-bold mb-6 text-center">Вход в админ-панель</h2>
-
-        <input
-          type="text"
-          placeholder="Մուտքանուն"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          className="w-full p-3 border rounded-xl mb-4"
-        />
-        <input
-          type="password"
-          placeholder="Գաղտնաբառ"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-3 border rounded-xl mb-4"
-        />
-        {error && <p className="text-red-500 mb-4 text-sm">{error}</p>}
-        <button
-          onClick={handleLogin}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold"
-        >
-          Մուտք գործել
-        </button>
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+        <h2 className="text-2xl font-bold mb-4 text-center">Вход в админ-панель</h2>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block mb-1 font-medium">Имя пользователя</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Имя пользователя"
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="block mb-1 font-medium">Пароль</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Пароль"
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Войти
+          </button>
+        </form>
       </div>
     </div>
   );

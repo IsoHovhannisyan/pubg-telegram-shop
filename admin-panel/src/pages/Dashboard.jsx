@@ -28,39 +28,33 @@ export default function Dashboard() {
     return <p className="p-4 text-red-500">Ошибка при загрузке данных</p>;
 
   return (
-    <div className="p-6 space-y-6">
-      <h2 className="text-3xl font-bold mb-4">📊 Панель статистики</h2>
-
+    <div className="min-h-screen p-6 bg-gradient-to-br from-blue-50 via-white to-pink-50">
+      <h2 className="text-4xl font-extrabold mb-8 text-center text-blue-900 drop-shadow">📊 Статистика магазина</h2>
       {/* Основные показатели */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-8">
         <StatCard label="💸 Общая выручка" value={`${stats.totalRevenue} ₽`} />
-        <StatCard label="📦 Всего заказов" value={stats.totalOrders} />
-        <StatCard label="👥 Всего пользователей" value={stats.totalUsers} />
+        <StatCard label="📦 Количество заказов" value={stats.totalOrders} />
+        <StatCard label="👥 Количество пользователей" value={stats.totalUsers} />
       </div>
-
       {/* Продажи по категориям */}
-      <div>
-        <h3 className="text-xl font-semibold mb-2">🛍 Продажи по категориям</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="bg-white rounded-2xl shadow-xl p-6 max-w-3xl mx-auto">
+        <h3 className="text-2xl font-semibold mb-4 text-center text-blue-800">🛍 Продажи по категориям</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {stats.salesByCategory.map((cat, i) => {
             const percent = (
-              (cat.revenue / getTotalRevenue()) *
-              100
+              (cat.revenue / getTotalRevenue()) * 100
             ).toFixed(1);
-
             return (
               <div
                 key={i}
-                className="border rounded p-4 shadow bg-white flex justify-between items-center"
+                className="border rounded-xl p-4 shadow bg-blue-50 flex flex-col gap-2 items-start hover:shadow-lg transition"
               >
-                <div>
-                  <div className="font-semibold">{cat.category}</div>
-                  <div className="text-sm text-gray-500">
-                    {cat.total} заказ(ов) · {cat.revenue} ₽
-                  </div>
+                <div className="font-semibold text-blue-900">{cat.category}</div>
+                <div className="text-sm text-gray-500">
+                  {cat.total} заказ(ов) · {cat.revenue} ₽
                 </div>
-                <div className="text-sm text-blue-600 font-semibold">
-                  +{percent}%
+                <div className="text-sm text-blue-600 font-semibold mt-auto">
+                  +{percent}% от общей выручки
                 </div>
               </div>
             );

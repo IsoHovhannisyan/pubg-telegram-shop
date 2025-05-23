@@ -12,6 +12,7 @@ module.exports = {
     orders: "📥 My Orders",
     popularity: "📢 Popularity",
     shop: "🛍 Shop",
+    referrals: '👥 Referrals',
   },
   buttons: {
     open_catalog: "📦 Open Catalog",

@@ -51,14 +51,14 @@ export default function Activator() {
           { orderId: order.id, status: "delivered" },
           { headers: { Authorization: `Bearer ${TOKEN}` } }
         );
-        alert(`✅ Заказ #${order.id} успешно активирован`);
+        alert(`✅ Заказ #${order.id} успешно активирован!`);
         fetchOrders();
       } else {
         throw new Error("Активатор вернул ошибку");
       }
     } catch (err) {
       console.error("❌ Ошибка при активации:", err);
-      alert(`Ошибка при активации заказа #${order.id}`);
+      alert(`❌ Ошибка при активации заказа #${order.id}`);
     }
   };
 
@@ -82,13 +82,12 @@ export default function Activator() {
   };
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">⚙️ Автоматическая активация</h2>
-
+    <div className="p-6 space-y-6 bg-gray-50">
+      <h2 className="text-3xl font-bold mb-4 text-center">⚙️ Автоматическая активация заказов</h2>
       {loading ? (
-        <p>Загрузка...</p>
+        <p className="text-center">Загрузка...</p>
       ) : pendingUCOrders.length === 0 ? (
-        <p className="text-gray-500">Нет заказов на активацию</p>
+        <p className="text-center text-gray-500">Нет заказов для автоматической активации</p>
       ) : (
         <div className="space-y-4">
           {pendingUCOrders.map((order) => {
@@ -97,7 +96,7 @@ export default function Activator() {
               : JSON.parse(order.products);
 
             return (
-              <div key={order.id} className="p-4 border rounded shadow">
+              <div key={order.id} className="p-4 border rounded shadow bg-white">
                 <div className="mb-2 font-semibold">
                   Заказ #{order.id} — PUBG ID: <b>{order.pubg_id}</b>
                 </div>
@@ -112,7 +111,7 @@ export default function Activator() {
                   onClick={() => activateOrder(order)}
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
                 >
-                  Активировать
+                  Активировать заказ
                 </button>
               </div>
             );
