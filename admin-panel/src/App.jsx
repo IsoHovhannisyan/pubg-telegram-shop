@@ -16,6 +16,7 @@ import PrivateRoute from './components/PrivateRoute';
 import UcCodes from './pages/UcCodes';
 import Referrals from './pages/Referrals';
 import Settings from './pages/Settings';
+import Broadcast from './pages/Broadcast';
 import axios from 'axios';
 import { FiSettings } from 'react-icons/fi';
 
@@ -93,6 +94,14 @@ export default function App() {
                 💾 UC-коды
               </NavLink>
               <NavLink
+                to="/broadcast"
+                className={({ isActive }) =>
+                  isActive ? "underline text-blue-700 font-semibold" : "hover:underline"
+                }
+              >
+                📢 Рассылка
+              </NavLink>
+              <NavLink
                 to="/settings"
                 className={({ isActive }) =>
                   `flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-blue-100 transition ${isActive ? 'bg-blue-200 font-bold' : ''}`
@@ -136,6 +145,7 @@ export default function App() {
             <Route path="/activator" element={<PrivateRoute><Activator /></PrivateRoute>} />
             <Route path="/manual" element={<PrivateRoute><ManualPanel /></PrivateRoute>} />
             <Route path="/uc-codes" element={<PrivateRoute><UcCodes /></PrivateRoute>} />
+            <Route path="/broadcast" element={<PrivateRoute><Broadcast /></PrivateRoute>} />
             <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
           </Routes>
         </main>

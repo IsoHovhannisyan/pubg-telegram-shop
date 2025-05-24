@@ -27,6 +27,7 @@ const stockRoutes = require('./routes/stock');
 
 const userRoutes = require('./routes/users');
 
+const broadcastRoutes = require('./routes/broadcast');
 
 app.use('/admin', authRoutes);
 app.use("/admin", setupAdminRoute); // ✅ Login route
@@ -116,6 +117,7 @@ app.get('/admin/stats', verifyToken, async (req, res) => {
   }
 });
 
+app.use('/admin', broadcastRoutes);
 
 // ✅ Լսել պորտ
 const PORT = process.env.ADMIN_API_PORT || 3001;

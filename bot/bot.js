@@ -5,6 +5,8 @@
 const { Telegraf, Markup } = require('telegraf');
 require('dotenv').config();
 require('../admin-api/adminApi');
+const express = require('express');
+const bodyParser = require('body-parser');
 
 const startHandler = require('./handlers/start');
 const catalog = require('./handlers/catalog');
@@ -162,6 +164,40 @@ bot.on('text', async (ctx) => {
 // ▶️ Запуск бота
 bot.launch();
 console.log('✅ Бот успешно запущен с мультиязычным SHOP-меню');
+
+const app = express();
+app.use(bodyParser.json());
+
+const BOT_API_SECRET = process.env.BOT_API_SECRET;
+
+app.post('/send-message', async (req, res) => {
+  const { userId, message, secret, reply_markup, parse_mode } = req.body;
+  if (secret !== BOT_API_SECRET) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  if (!userId || !message) {
+    return res.status(400).json({ error: 'userId and message are required' });
+  }
+  try {
+    await bot.telegram.sendMessage(
+      userId,
+      message,
+      {
+        reply_markup: reply_markup,
+        parse_mode: parse_mode || 'HTML'
+      }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to send message:', err);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+const BOT_HTTP_PORT = process.env.BOT_HTTP_PORT || 4000;
+app.listen(BOT_HTTP_PORT, () => {
+  console.log(`Bot HTTP API listening on port ${BOT_HTTP_PORT}`);
+});
 
 module.exports = { bot };
 

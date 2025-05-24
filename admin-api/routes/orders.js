@@ -25,21 +25,23 @@ router.post('/notify-delivery', verifyToken, async (req, res) => {
       `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
     ).join('\n');
 
-    const message = `
-✅ <b>Ваш заказ доставлен!</b>
+    const total = products.reduce((sum, p) => sum + (p.price * p.qty), 0);
 
-🎮 PUBG ID: <code>${pubgId}</code>
-${nickname ? `👤 Никнейм: ${nickname}\n` : ''}
+    const message = `\n✅ <b>Ваш заказ доставлен!</b>\n\n🎮 PUBG ID: <code>${pubgId}</code>\n${nickname ? `👤 Никнейм: ${nickname}\n` : ''}${itemsText}\n\n💰 Сумма: ${total} ₽\n\nСпасибо за покупку! 🎉`;
 
-${itemsText}
-
-💰 Сумма: ${order.total} ₽
-
-Спасибо за покупку! 🎉
-    `;
+    const feedbackButton = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '💬 Оставить отзыв', url: 'https://t.me/Isohovhannisyan' }
+          ]
+        ]
+      },
+      parse_mode: 'HTML'
+    };
 
     try {
-      await bot.telegram.sendMessage(userId, message, { parse_mode: 'HTML' });
+      await bot.telegram.sendMessage(userId, message, feedbackButton);
       res.json({ success: true });
     } catch (botError) {
       // Handle specific Telegram bot errors
