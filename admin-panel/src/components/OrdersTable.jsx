@@ -52,6 +52,8 @@ export default function OrdersTable() {
       const res = await axios.get(`${API_URL}/admin/orders`, {
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }
       });
+      console.log('All orders:', res.data);
+      console.log('Delivered orders:', res.data.filter(order => order.status === 'delivered'));
       setOrders(res.data);
     } catch (err) {
       alert('Ошибка загрузки заказов');
@@ -175,14 +177,37 @@ export default function OrdersTable() {
     }).join(', ');
   };
 
-  const filteredOrders = orders.filter(order => 
-    showArchived ? order.status === 'delivered' : order.status !== 'delivered'
-  );
+  const formatProductDetails = (products) => {
+    if (!Array.isArray(products)) return '';
+    
+    return products.map(p => {
+      const type = p.type === 'auto' ? '(по входу)' : 
+                  p.type === 'manual' ? '(по ID)' :
+                  p.type === 'costume' ? '(X-Костюм)' : '';
+      return `${p.qty} шт. ${type}`;
+    }).join(', ');
+  };
+
+  const calculateTotalPrice = (products) => {
+    if (!Array.isArray(products)) return 0;
+    return products.reduce((total, p) => total + (p.price * p.qty), 0);
+  };
+
+  const filteredOrders = orders.filter(order => {
+    const isDelivered = order.status === 'delivered';
+    console.log(`Order ${order.id}: status=${order.status}, isDelivered=${isDelivered}`);
+    return showArchived ? isDelivered : !isDelivered;
+  });
 
   const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const currentOrders = filteredOrders.slice(startIndex, endIndex);
+
+  // Reset to first page when switching between active and archive
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [showArchived]);
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {
@@ -233,6 +258,13 @@ export default function OrdersTable() {
     }
   };
 
+  const getUserSmiley = (userId) => {
+    if (!userId) return '';
+    const lastDigit = userId.toString().slice(-1);
+    const smileys = ['😊', '😎', '🤖', '👾', '🎮', '🎯', '🎲', '🎪', '🎨', '🎭'];
+    return smileys[parseInt(lastDigit)] || '👤';
+  };
+
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-4">
@@ -255,7 +287,7 @@ export default function OrdersTable() {
       {loading ? (
         <p>Загрузка...</p>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-lg shadow">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -285,18 +317,20 @@ export default function OrdersTable() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {currentOrders.map((order) => (
-                  <tr key={order.id}>
+                  <tr key={order.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {order.id}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {order.pubg_id}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {order.product_name}
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      <div className="max-w-md">
+                        {formatProductList(Array.isArray(order.products) ? order.products : JSON.parse(order.products || "[]"))}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {order.amount} ₽
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {calculateTotalPrice(Array.isArray(order.products) ? order.products : JSON.parse(order.products || "[]"))} ₽
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
@@ -304,21 +338,15 @@ export default function OrdersTable() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(order.created_at).toLocaleString()}
+                      {order.created_at ? new Date(order.created_at).toLocaleString() : order.createdAt ? new Date(order.createdAt).toLocaleString() : ""}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <select
-                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                        value={order.status}
-                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                        disabled={processingOrder === order.id}
+                      <button
+                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        onClick={() => openOrder(order)}
                       >
-                        {getAvailableStatuses(order).map(status => (
-                          <option key={status.value} value={status.value}>
-                            {status.label}
-                          </option>
-                        ))}
-                      </select>
+                        Детали
+                      </button>
                     </td>
                   </tr>
                 ))}

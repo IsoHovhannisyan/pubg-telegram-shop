@@ -14,13 +14,17 @@ export default function Settings() {
     orders_disabled_message: "❗️Извините, в данный момент заказы недоступны."
   });
 
+  const token = localStorage.getItem("admin-token");
+
   useEffect(() => {
     fetchSettings();
   }, []);
 
   const fetchSettings = async () => {
     try {
-      const res = await API.get(`${API_URL}/admin/settings/shop-status`);
+      const res = await API.get(`${API_URL}/admin/settings/shop-status`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setSettings(res.data);
     } catch (err) {
       console.error("❌ Ошибка при получении настроек:", err);
@@ -32,7 +36,9 @@ export default function Settings() {
   const updateSettings = async (newSettings) => {
     setSaving(true);
     try {
-      await API.post(`${API_URL}/admin/settings/shop-status`, newSettings);
+      await API.post(`${API_URL}/admin/settings/shop-status`, newSettings, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setSettings(newSettings);
       alert("✅ Настройки успешно сохранены");
     } catch (err) {

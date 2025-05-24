@@ -17,6 +17,7 @@ import UcCodes from './pages/UcCodes';
 import Referrals from './pages/Referrals';
 import Settings from './pages/Settings';
 import axios from 'axios';
+import { FiSettings } from 'react-icons/fi';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('admin-token') || '');
@@ -97,7 +98,7 @@ export default function App() {
                   `flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-blue-100 transition ${isActive ? 'bg-blue-200 font-bold' : ''}`
                 }
               >
-                <span className="material-icons mr-2">settings</span>
+                <FiSettings className="mr-2 text-xl" />
                 Настройки
               </NavLink>
             </nav>

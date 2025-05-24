@@ -16,7 +16,7 @@ export const getOrders = async () => {
 };
 
 export const updateOrderStatus = async (orderId, status) => {
-  const response = await axios.post(`${API_URL}/admin/orders/${orderId}/status`, { status });
+  const response = await axios.patch(`${API_URL}/admin/orders/${orderId}`, { status });
   return response.data;
 };
 

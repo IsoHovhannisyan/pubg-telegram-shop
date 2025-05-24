@@ -57,6 +57,9 @@
         "qty": 1
       }
     ],
-    "id": null
+    "id": null,
+    "popularity": [],
+    "cars": [],
+    "costumes": []
   }
 }

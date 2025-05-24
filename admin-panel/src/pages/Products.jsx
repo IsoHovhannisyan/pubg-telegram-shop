@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import API from "../api";
 
 const API_URL = process.env.REACT_APP_API_URL;
+const ITEMS_PER_PAGE = 9; // 3x3 grid
 
 const categories = [
   "uc_by_id",
@@ -36,6 +37,9 @@ const [form, setForm] = useState({
   const [editingId, setEditingId] = useState(null);
   const [filterCategory, setFilterCategory] = useState("ALL");
   const [preview, setPreview] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [newProductId, setNewProductId] = useState(null);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const token = localStorage.getItem("admin-token");
 
@@ -44,7 +48,7 @@ const [form, setForm] = useState({
       const res = await API.get(`${API_URL}/admin/products/admin`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setProducts(res.data);
+      setProducts(res.data.sort((a, b) => b.id - a.id));
       console.log("📦 Products fetched:", res.data);
     } catch (err) {
       console.error("❌ Ошибка при получении товаров:", err);
@@ -68,8 +72,8 @@ const [form, setForm] = useState({
       }
     } else {
       setForm((prev) => ({ ...prev, [name]: value }));
-      // Clear preview when category changes to types that don't need images
-      if (name === "category" && (value === "popularity_by_id" || value === "uc_by_id")) {
+      // Clear preview when category changes
+      if (name === "category") {
         setPreview(null);
         setForm(prev => ({ ...prev, image: null }));
       }
@@ -88,27 +92,45 @@ const [form, setForm] = useState({
 
       formData.append("status", form.active ? "active" : "inactive");
 
+      let response;
       if (editingId) {
-        await API.put(`${API_URL}/admin/products/${editingId}`, formData, {
+        response = await API.put(`${API_URL}/admin/products/${editingId}`, formData, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "multipart/form-data",
           },
         });
       } else {
-        await API.post(`${API_URL}/admin/products`, formData, {
+        response = await API.post(`${API_URL}/admin/products`, formData, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "multipart/form-data",
           },
         });
       }
+
       resetForm();
       // Fetch products and sort them to show newest first
       const res = await API.get(`${API_URL}/admin/products/admin`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setProducts(res.data.sort((a, b) => b.id - a.id));
+
+      if (!editingId) {
+        const newProduct = res.data.find(p => p.id === response.data.id);
+        setProducts(res.data.sort((a, b) => b.id - a.id));
+        setNewProductId(newProduct ? newProduct.id : null);
+        setCurrentPage(1);
+        // Show success message
+        setSuccessMessage(`Товар "${newProduct ? newProduct.name : ''}" успешно добавлен!`);
+        setTimeout(() => {
+          setNewProductId(null);
+          setSuccessMessage("");
+        }, 3000);
+      } else {
+        setProducts(res.data.sort((a, b) => b.id - a.id));
+        setSuccessMessage("Изменения успешно сохранены!");
+        setTimeout(() => setSuccessMessage(""), 3000);
+      }
     } catch (err) {
       console.error("❌ Ошибка при сохранении товара:", err);
       alert("Ошибка при сохранении товара");
@@ -191,8 +213,38 @@ const sendPreviewWithImage = async () => {
   }
 };
 
-   return (
+  // Add pagination logic
+  let filteredProducts = products.filter(product => 
+    filterCategory === "ALL" || product.category === filterCategory
+  );
+
+  // If newProductId is set, always show that product at the top (even if filtered out)
+  let newProduct = null;
+  if (newProductId) {
+    newProduct = products.find(p => p.id === newProductId);
+    if (newProduct) {
+      filteredProducts = [newProduct, ...filteredProducts.filter(p => p.id !== newProductId)];
+    }
+  }
+
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const currentProducts = filteredProducts.slice(startIndex, endIndex);
+
+  // Reset to first page when changing category filter
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterCategory]);
+
+  return (
     <div className="min-h-screen p-4 bg-gradient-to-br from-blue-50 via-white to-pink-50">
+      {/* Success Toast */}
+      {successMessage && (
+        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg text-lg font-semibold animate-fade-in-out">
+          {successMessage}
+        </div>
+      )}
       <h2 className="text-4xl font-extrabold mb-8 text-center text-blue-900 drop-shadow">🛒 Управление товарами</h2>
       {/* Форма добавления / редактирования */}
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-8 mb-10 max-w-3xl mx-auto space-y-6">
@@ -324,15 +376,24 @@ const sendPreviewWithImage = async () => {
       <div className="bg-white rounded-2xl shadow-xl p-8">
         <h3 className="text-2xl font-semibold mb-6 text-blue-800">Список товаров</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {products
-            .filter(product => filterCategory === "ALL" || product.category === filterCategory)
-            .map((product) => (
-            <div key={product.id} className={`border rounded-xl p-6 shadow bg-blue-50 flex flex-col gap-2 hover:shadow-lg transition ${product.isNew ? 'ring-2 ring-green-500 animate-pulse' : ''}`}>
+          {currentProducts.map((product) => (
+            <div 
+              key={product.id} 
+              className={`border rounded-xl p-6 shadow bg-blue-50 flex flex-col gap-2 hover:shadow-lg transition
+                ${product.isNew ? 'ring-4 ring-green-500 animate-pulse bg-green-50' : ''}`}
+            >
               <div className="flex justify-between items-start">
                 <h4 className="font-semibold text-blue-900">{product.name}</h4>
-                <span className={`px-2 py-1 rounded text-xs font-medium ${product.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                  {product.status === 'active' ? 'Активен' : 'Неактивен'}
-                </span>
+                <div className="flex items-center gap-2">
+                  {product.isNew && (
+                    <span className="px-2 py-1 bg-green-500 text-white rounded text-xs font-medium animate-bounce">
+                      Новый
+                    </span>
+                  )}
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${product.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {product.status === 'active' ? 'Активен' : 'Неактивен'}
+                  </span>
+                </div>
               </div>
               <p>Цена: <span className="font-bold">{product.price} ₽</span></p>
               <p>Сток: <span className="font-bold">{product.stock}</span></p>
@@ -364,6 +425,43 @@ const sendPreviewWithImage = async () => {
             </div>
           ))}
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="mt-6 flex justify-center">
+            <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+              <button
+                onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <span className="sr-only">Previous</span>
+                &laquo;
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium
+                    ${currentPage === page
+                      ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                      : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                    }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+                className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <span className="sr-only">Next</span>
+                &raquo;
+              </button>
+            </nav>
+          </div>
+        )}
       </div>
     </div>
   );

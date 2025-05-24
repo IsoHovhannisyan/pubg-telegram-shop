@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import API from "../api";
 
 const API_URL = process.env.REACT_APP_API_URL;
+const ITEMS_PER_PAGE = 9; // 3x3 grid
 
 const MANUAL_CATEGORIES = ["POPULARITY_ID", "POPULARITY_HOME", "CARS", "COSTUMES"];
 
@@ -18,6 +19,8 @@ export default function ManualPanel() {
   const [productsList, setProductsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [newOrderIds, setNewOrderIds] = useState(new Set());
 
   const token = localStorage.getItem("admin-token");
 
@@ -26,6 +29,21 @@ export default function ManualPanel() {
       const res = await API.get(`${API_URL}/admin/orders`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      
+      // Track new orders
+      const currentOrderIds = new Set(orders.map(o => o.id));
+      const newIds = res.data
+        .filter(o => !currentOrderIds.has(o.id))
+        .map(o => o.id);
+      
+      if (newIds.length > 0) {
+        setNewOrderIds(new Set(newIds));
+        // Clear new order highlighting after 5 seconds
+        setTimeout(() => {
+          setNewOrderIds(new Set());
+        }, 5000);
+      }
+      
       setOrders(res.data);
     } catch (err) {
       console.error("❌ Ошибка при получении заказов:", err);
@@ -127,6 +145,17 @@ export default function ManualPanel() {
     );
   });
 
+  // Pagination logic
+  const totalPages = Math.ceil(manualOrders.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const currentOrders = manualOrders.slice(startIndex, endIndex);
+
+  // Reset to first page when switching between active and archive
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [showArchived]);
+
   const getStatusButtons = (order) => {
     const buttons = [];
     
@@ -194,8 +223,8 @@ export default function ManualPanel() {
 
   return (
     <div className="min-h-screen p-6 bg-gradient-to-br from-blue-50 via-white to-pink-50">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-4xl font-extrabold text-center text-blue-900 drop-shadow">🧑‍💼 Ручная доставка</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-3xl font-extrabold text-center text-blue-900 drop-shadow">🧑‍💼 Ручная доставка</h2>
         <div className="flex gap-2">
           <button
             onClick={() => setShowArchived(false)}
@@ -226,52 +255,96 @@ export default function ManualPanel() {
           {showArchived ? 'Нет доставленных заказов' : 'Нет заказов для ручной обработки'}
         </p>
       ) : (
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {manualOrders.map((order) => {
-            const products = Array.isArray(order.products)
-              ? order.products
-              : JSON.parse(order.products || "[]");
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {currentOrders.map((order) => {
+              const products = Array.isArray(order.products)
+                ? order.products
+                : JSON.parse(order.products || "[]");
+              const isNew = newOrderIds.has(order.id);
 
-            return (
-              <div key={order.id} className="bg-white border border-blue-100 rounded-2xl shadow-xl p-6 flex flex-col justify-between transition-transform hover:scale-[1.025] hover:shadow-2xl">
-                <div>
-                  <div className="mb-2 font-bold text-lg text-blue-800 flex items-center gap-2">
-                    <span className="inline-block bg-blue-100 text-blue-700 rounded px-2 py-0.5 text-xs font-semibold">Заказ #{order.id}</span>
-                    <span className="ml-auto text-xs text-gray-400">{order.time ? new Date(order.time).toLocaleString() : "-"}</span>
+              return (
+                <div 
+                  key={order.id} 
+                  className={`bg-white border border-blue-100 rounded-xl shadow-lg p-4 flex flex-col justify-between transition-all
+                    ${isNew ? 'ring-2 ring-green-500 animate-pulse' : 'hover:shadow-xl'}`}
+                >
+                  <div>
+                    <div className="mb-2 font-bold text-base text-blue-800 flex items-center gap-2">
+                      <span className="inline-block bg-blue-100 text-blue-700 rounded px-2 py-0.5 text-xs font-semibold">Заказ #{order.id}</span>
+                      <span className="ml-auto text-xs text-gray-400">{order.time ? new Date(order.time).toLocaleString() : "-"}</span>
+                    </div>
+                    <div className="mb-1 text-sm text-gray-700">
+                      <span className="font-medium">PUBG ID:</span> <b>{order.pubg_id || "-"}</b>
+                    </div>
+                    <div className="mb-1 text-sm text-gray-700">
+                      <span className="font-medium">Никнейм:</span> {order.nickname || "-"}
+                    </div>
+                    <ul className="text-sm mb-2 list-disc pl-5 max-h-20 overflow-y-auto pr-2 text-gray-800">
+                      {products.map((p, i) => (
+                        <li key={i}>
+                          {getProductNameById(p.id)} × {p.qty}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mb-2">
+                      <span className="text-xs font-semibold mr-2">Статус:</span>
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-bold shadow-sm
+                        ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
+                        ${order.status === 'manual_processing' ? 'bg-blue-100 text-blue-800' : ''}
+                        ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : ''}
+                        ${order.status === 'error' ? 'bg-red-100 text-red-800' : ''}
+                        ${order.status === 'unpaid' ? 'bg-gray-100 text-gray-800' : ''}
+                      `}>
+                        {statusLabels[order.status] || order.status}
+                      </span>
+                    </div>
                   </div>
-                  <div className="mb-1 text-sm text-gray-700">
-                    <span className="font-medium">PUBG ID:</span> <b>{order.pubg_id || "-"}</b>
-                  </div>
-                  <div className="mb-1 text-sm text-gray-700">
-                    <span className="font-medium">Никнейм:</span> {order.nickname || "-"}
-                  </div>
-                  <ul className="text-sm mb-3 list-disc pl-5 max-h-24 overflow-y-auto pr-2 text-gray-800">
-                    {products.map((p, i) => (
-                      <li key={i}>
-                        {getProductNameById(p.id)} × {p.qty}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mb-3">
-                    <span className="text-xs font-semibold mr-2">Статус:</span>
-                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold shadow-sm
-                      ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
-                      ${order.status === 'manual_processing' ? 'bg-blue-100 text-blue-800' : ''}
-                      ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : ''}
-                      ${order.status === 'error' ? 'bg-red-100 text-red-800' : ''}
-                      ${order.status === 'unpaid' ? 'bg-gray-100 text-gray-800' : ''}
-                    `}>
-                      {statusLabels[order.status] || order.status}
-                    </span>
+                  <div className="flex gap-2 mt-2">
+                    {getStatusButtons(order)}
                   </div>
                 </div>
-                <div className="flex gap-2 mt-2">
-                  {getStatusButtons(order)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex justify-center">
+              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                <button
+                  onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <span className="sr-only">Previous</span>
+                  &laquo;
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium
+                      ${currentPage === page
+                        ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                        : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                      }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
+                  disabled={currentPage === totalPages}
+                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <span className="sr-only">Next</span>
+                  &raquo;
+                </button>
+              </nav>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
