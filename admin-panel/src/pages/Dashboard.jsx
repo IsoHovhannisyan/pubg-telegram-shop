@@ -8,20 +8,20 @@ export default function Dashboard() {
   const token = localStorage.getItem("admin-token");
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
+  const fetchStats = async () => {
+    try {
         const [statsRes, orderStatsRes] = await Promise.all([
           API.get("/admin/stats", { headers: { Authorization: `Bearer ${token}` } }),
           API.get("/admin/orders/stats/summary", { headers: { Authorization: `Bearer ${token}` } })
         ]);
         setStats(statsRes.data);
         setOrderStats(orderStatsRes.data[0]);
-      } catch (err) {
+    } catch (err) {
         console.error("Ошибка при загрузке статистики:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    } finally {
+      setLoading(false);
+    }
+  };
     fetchStats();
   }, [token]);
 

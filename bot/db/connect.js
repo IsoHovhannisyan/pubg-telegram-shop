@@ -8,6 +8,7 @@ let pool = createPool();
 function createPool() {
   return new Pool({
     connectionString: process.env.DB_URL,
+    max: 2, // Limit pool size for free-tier DB
     ssl: {
       rejectUnauthorized: false,
     },

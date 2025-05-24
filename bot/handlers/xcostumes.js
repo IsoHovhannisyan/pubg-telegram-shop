@@ -78,12 +78,20 @@ module.exports.callbackQuery = async (ctx) => {
       return ctx.answerCbQuery("❌ Костюм не найден", { show_alert: true });
     }
 
+    // --- STOCK CHECK ---
+    if (product.stock <= 0) {
+      return ctx.answerCbQuery('❌ Товар закончился', { show_alert: true });
+    }
+
     const userId = ctx.from.id;
     let userData = userSelections.get(userId) || { uc: [], popularity: [], cars: [], costumes: [], id: null };
     userData.costumes = userData.costumes || [];
 
     const existing = userData.costumes.find(p => p.id === product.id);
     if (existing) {
+      if (existing.qty + 1 > product.stock) {
+        return ctx.answerCbQuery(`❌ Недостаточно товара на складе. Осталось: ${product.stock} шт.`, { show_alert: true });
+      }
       existing.qty += 1;
     } else {
       userData.costumes.push({
@@ -98,7 +106,7 @@ module.exports.callbackQuery = async (ctx) => {
     userSelections.set(userId, userData);
 
     await ctx.reply(
-      `${product.name} ✅ ${lang.catalog.added}`,
+      `${product.name} ✅ ${lang.catalog.added}\n🗃 В наличии: ${product.stock} шт.`,
       Markup.inlineKeyboard([
         [Markup.button.callback(lang.buttons.to_cart, 'go_to_cart')]
       ])

@@ -21,6 +21,7 @@ export default function ManualPanel() {
   const [showArchived, setShowArchived] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [newOrderIds, setNewOrderIds] = useState(new Set());
+  const [stockDecreasedOrders, setStockDecreasedOrders] = useState(new Set()); // Track orders with decreased stock
 
   const token = localStorage.getItem("admin-token");
 
@@ -30,9 +31,16 @@ export default function ManualPanel() {
         headers: { Authorization: `Bearer ${token}` },
       });
       
+      // Sort orders by newest first
+      const sortedOrders = res.data.sort((a, b) => {
+        const dateA = new Date(a.created_at || a.createdAt);
+        const dateB = new Date(b.created_at || b.createdAt);
+        return dateB - dateA;
+      });
+      
       // Track new orders
       const currentOrderIds = new Set(orders.map(o => o.id));
-      const newIds = res.data
+      const newIds = sortedOrders
         .filter(o => !currentOrderIds.has(o.id))
         .map(o => o.id);
       
@@ -44,7 +52,7 @@ export default function ManualPanel() {
         }, 5000);
       }
       
-      setOrders(res.data);
+      setOrders(sortedOrders);
     } catch (err) {
       console.error("❌ Ошибка при получении заказов:", err);
     } finally {
@@ -73,9 +81,64 @@ export default function ManualPanel() {
         }
       );
 
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return;
+      const prods = Array.isArray(order.products)
+        ? order.products
+        : JSON.parse(order.products || "[]");
+
+      // Decrease stock if marking as paid (unpaid -> pending)
+      if (status === 'pending' && !stockDecreasedOrders.has(orderId)) {
+        for (const p of prods) {
+          try {
+            await API.post(
+              `${API_URL}/admin/stock/update`,
+              { product_id: p.id, quantity: p.qty },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+          } catch (err) {
+            console.error(`Ошибка при уменьшении стока для товара ${p.id}:`, err);
+          }
+        }
+        setStockDecreasedOrders(new Set([...stockDecreasedOrders, orderId]));
+      }
+
+      // Decrease stock if marking as delivered and not already decreased
+      if (status === 'delivered' && !stockDecreasedOrders.has(orderId)) {
+        for (const p of prods) {
+          try {
+            await API.post(
+              `${API_URL}/admin/stock/update`,
+              { product_id: p.id, quantity: p.qty },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+          } catch (err) {
+            console.error(`Ошибка при уменьшении стока для товара ${p.id}:`, err);
+          }
+        }
+        setStockDecreasedOrders(new Set([...stockDecreasedOrders, orderId]));
+      }
+
+      // Restore stock if marking as error and it was previously decreased
+      if (status === 'error' && stockDecreasedOrders.has(orderId)) {
+        for (const p of prods) {
+          try {
+            await API.post(
+              `${API_URL}/admin/stock/restore`,
+              { product_id: p.id, quantity: p.qty },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+          } catch (err) {
+            console.error(`Ошибка при восстановлении стока для товара ${p.id}:`, err);
+          }
+        }
+        const newSet = new Set(stockDecreasedOrders);
+        newSet.delete(orderId);
+        setStockDecreasedOrders(newSet);
+      }
+
       // Send delivery notification if status is 'delivered'
       if (status === 'delivered') {
-        const order = orders.find(o => o.id === orderId);
         if (order && order.user_id) {
           try {
             await API.post(
@@ -126,11 +189,13 @@ export default function ManualPanel() {
 
   const manualOrders = orders.filter((o) => {
     if (showArchived) {
-      if (o.status !== 'delivered') return false;
+      // Show only delivered orders
+      return o.status === 'delivered';
     } else {
-      if (o.status === 'delivered') return false;
+      // Show only not delivered orders
+      return o.status !== 'delivered';
     }
-
+  }).filter((o) => {
     const prods = Array.isArray(o.products)
       ? o.products
       : JSON.parse(o.products || "[]");
@@ -143,6 +208,11 @@ export default function ManualPanel() {
           (pr) => pr.id === p.id && MANUAL_CATEGORIES.includes(pr.category)
         )
     );
+  }).sort((a, b) => {
+    // Sort strictly by time, newest first
+    const timeA = new Date(a.time || a.created_at || a.createdAt);
+    const timeB = new Date(b.time || b.created_at || b.createdAt);
+    return timeB - timeA;
   });
 
   // Pagination logic
@@ -158,7 +228,26 @@ export default function ManualPanel() {
 
   const getStatusButtons = (order) => {
     const buttons = [];
-    
+
+    // If order is unpaid, allow to mark as paid
+    if (order.status === 'unpaid') {
+      buttons.push(
+        <button
+          key="mark-paid"
+          onClick={() => {
+            if (window.confirm("Отметить заказ как 'Оплачен' и вернуть в обработку?")) {
+              updateStatus(order.id, "pending");
+            }
+          }}
+          className="flex-1 px-3 py-2 bg-green-100 text-green-800 rounded-lg font-semibold hover:bg-green-200 transition"
+        >
+          Оплачен
+        </button>
+      );
+      return buttons;
+    }
+
+    // For orders in pending status, only allow to take into processing
     if (order.status === 'pending') {
       buttons.push(
         <button
@@ -173,8 +262,10 @@ export default function ManualPanel() {
           Взять в обработку
         </button>
       );
+      return buttons;
     }
 
+    // Only show 'Доставлен' and 'Ошибка' when status is 'manual_processing'
     if (order.status === 'manual_processing') {
       buttons.push(
         <button
@@ -200,6 +291,7 @@ export default function ManualPanel() {
           Ошибка
         </button>
       );
+      return buttons;
     }
 
     if (order.status === 'error') {

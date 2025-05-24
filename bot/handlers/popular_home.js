@@ -59,8 +59,22 @@ module.exports.callbackQuery = async (ctx) => {
 
   const existing = userData.popularity.find(p => p.id === item.id);
   if (existing) {
+    // Fetch current stock from DB
+    const res = await axios.get(`${API_URL}/products?category=popularity_home_by_id`);
+    const stockItem = res.data.find(prod => prod.id.toString() === item.id.toString());
+    const stock = stockItem?.stock ?? 0;
+    if (existing.qty + 1 > stock) {
+      return ctx.answerCbQuery(`❌ Недостаточно товара на складе. Осталось: ${stock} шт.`, { show_alert: true });
+    }
     existing.qty += 1;
   } else {
+    // Fetch current stock from DB
+    const res = await axios.get(`${API_URL}/products?category=popularity_home_by_id`);
+    const stockItem = res.data.find(prod => prod.id.toString() === item.id.toString());
+    const stock = stockItem?.stock ?? 0;
+    if (stock <= 0) {
+      return ctx.answerCbQuery('❌ Товар закончился', { show_alert: true });
+    }
     userData.popularity.push({
       id: item.id,
       title: item.name,
@@ -74,7 +88,7 @@ module.exports.callbackQuery = async (ctx) => {
 
   const lang = await getLang(ctx);
   await ctx.reply(
-    `${item.name} ✅ ${lang.catalog.added}`,
+    `${item.name} ✅ ${lang.catalog.added}\n🗃 В наличии: ${(() => { const res = userData._popularityHomeList?.find(prod => prod.id.toString() === item.id.toString()); return res?.stock ?? 0; })()} шт.`,
     Markup.inlineKeyboard([
       [Markup.button.callback(lang.buttons.to_cart, "go_to_cart")]
     ])

@@ -29,6 +29,9 @@ export default function OrdersTable() {
   const [showArchived, setShowArchived] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [processingOrder, setProcessingOrder] = useState(null);
+  const [sortByNewest, setSortByNewest] = useState(true);
+  const [showDelivered, setShowDelivered] = useState(false);
+  const [stockDecreasedOrders, setStockDecreasedOrders] = useState(new Set());
 
   useEffect(() => {
     fetchOrders();
@@ -52,9 +55,15 @@ export default function OrdersTable() {
       const res = await axios.get(`${API_URL}/admin/orders`, {
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }
       });
-      console.log('All orders:', res.data);
-      console.log('Delivered orders:', res.data.filter(order => order.status === 'delivered'));
-      setOrders(res.data);
+      // Sort orders by newest first
+      const sortedOrders = res.data.sort((a, b) => {
+        const dateA = new Date(a.created_at || a.createdAt);
+        const dateB = new Date(b.created_at || b.createdAt);
+        return sortByNewest ? dateB - dateA : dateA - dateB;
+      });
+      console.log('All orders:', sortedOrders);
+      console.log('Delivered orders:', sortedOrders.filter(order => order.status === 'delivered'));
+      setOrders(sortedOrders);
     } catch (err) {
       alert('Ошибка загрузки заказов');
     }
@@ -99,6 +108,65 @@ export default function OrdersTable() {
       }, {
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }
       });
+
+      // Decrease stock if marking as paid (unpaid -> pending) and not already decreased
+      if (status === 'pending' && selectedOrder.status === 'unpaid' && !stockDecreasedOrders.has(orderId)) {
+        const prods = Array.isArray(selectedOrder.products)
+          ? selectedOrder.products
+          : JSON.parse(selectedOrder.products || "[]");
+        for (const p of prods) {
+          try {
+            await axios.post(
+              `${API_URL}/admin/stock/update`,
+              { product_id: p.id, quantity: p.qty },
+              { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }
+            );
+          } catch (err) {
+            console.error(`Ошибка при уменьшении стока для товара ${p.id}:`, err);
+          }
+        }
+        setStockDecreasedOrders(new Set([...stockDecreasedOrders, orderId]));
+      }
+
+      // Decrease stock if marking as delivered and not already decreased
+      if (status === 'delivered' && !stockDecreasedOrders.has(orderId)) {
+        const prods = Array.isArray(selectedOrder.products)
+          ? selectedOrder.products
+          : JSON.parse(selectedOrder.products || "[]");
+        for (const p of prods) {
+          try {
+            await axios.post(
+              `${API_URL}/admin/stock/update`,
+              { product_id: p.id, quantity: p.qty },
+              { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }
+            );
+          } catch (err) {
+            console.error(`Ошибка при уменьшении стока для товара ${p.id}:`, err);
+          }
+        }
+        setStockDecreasedOrders(new Set([...stockDecreasedOrders, orderId]));
+      }
+
+      // Restore stock if marking as error and it was previously decreased
+      if (status === 'error' && stockDecreasedOrders.has(orderId)) {
+        const prods = Array.isArray(selectedOrder.products)
+          ? selectedOrder.products
+          : JSON.parse(selectedOrder.products || "[]");
+        for (const p of prods) {
+          try {
+            await axios.post(
+              `${API_URL}/admin/stock/restore`,
+              { product_id: p.id, quantity: p.qty },
+              { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }
+            );
+          } catch (err) {
+            console.error(`Ошибка при восстановлении стока для товара ${p.id}:`, err);
+          }
+        }
+        const newSet = new Set(stockDecreasedOrders);
+        newSet.delete(orderId);
+        setStockDecreasedOrders(newSet);
+      }
 
       // Send delivery notification if status is 'delivered'
       if (status === 'delivered') {
@@ -195,8 +263,14 @@ export default function OrdersTable() {
 
   const filteredOrders = orders.filter(order => {
     const isDelivered = order.status === 'delivered';
-    console.log(`Order ${order.id}: status=${order.status}, isDelivered=${isDelivered}`);
-    return showArchived ? isDelivered : !isDelivered;
+    const isManualOrder = needsManualProcessing(order);
+    
+    if (showArchived) {
+      return isDelivered;
+    } else {
+      // Show all non-delivered orders, including pending orders
+      return !isDelivered;
+    }
   });
 
   const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
@@ -270,6 +344,12 @@ export default function OrdersTable() {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Таблица заказов</h2>
         <div className="flex gap-2">
+          <button
+            onClick={() => setSortByNewest(!sortByNewest)}
+            className={`px-3 py-1 rounded ${sortByNewest ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+          >
+            {sortByNewest ? 'Сначала новые' : 'Сначала старые'}
+          </button>
           <button
             onClick={() => setShowArchived(false)}
             className={`px-3 py-1 rounded ${!showArchived ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}

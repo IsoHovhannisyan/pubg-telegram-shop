@@ -156,9 +156,45 @@ async function callbackQuery(ctx) {
       return ctx.reply(lang.cart.select_first);
     }
 
+    // --- FINAL STOCK CHECK ---
+    const allItems = [
+      ...(userData.uc || []),
+      ...(userData.popularity || []),
+      ...(userData.cars || []),
+      ...(userData.costumes || [])
+    ];
+    for (const item of allItems) {
+      let stock = 0;
+      try {
+        const res = await axios.get(`${process.env.API_URL || 'http://localhost:3001'}/admin/products/${item.id}`);
+        stock = res.data?.stock ?? 0;
+      } catch (err) {
+        // fallback: try products endpoint
+        try {
+          const res = await axios.get(`${process.env.API_URL || 'http://localhost:3001'}/products`);
+          const found = Array.isArray(res.data) ? res.data.find(p => p.id == item.id) : null;
+          stock = found?.stock ?? 0;
+        } catch (e) {
+          stock = 0;
+        }
+      }
+      if (item.qty > stock) {
+        return ctx.reply(`❌ Недостаточно товара для "${item.title || item.name}". Осталось: ${stock} шт.`,
+          Markup.inlineKeyboard([
+            [Markup.button.callback('🛍 Магазин', 'open_shop_menu')]
+          ])
+        );
+      }
+    }
+    // --- END FINAL STOCK CHECK ---
+
     // Check if any items require PUBG ID
-    const needsPubgId = userData.uc.some(item => item.type === 'auto') || 
-                       userData.popularity.some(item => item.type === 'manual');
+    const needsPubgId = allItems.some(item => 
+      item.type === 'auto' || // UC by ID
+      item.type === 'manual' || // Popularity
+      item.type === 'car' || // Cars
+      item.type === 'costume' // Costumes
+    );
 
     if (needsPubgId) {
       userData.expectingId = true;
@@ -172,7 +208,7 @@ async function callbackQuery(ctx) {
     }
 
     // If no PUBG ID needed, proceed with order
-    return registerOrder(ctx, null, [...userData.uc, ...userData.popularity, ...userData.cars, ...userData.costumes]);
+    return registerOrder(ctx, null, allItems);
   }
 
   if (data === 'cancel_order') {
@@ -202,40 +238,49 @@ async function callbackQuery(ctx) {
   }
 
   if (data.startsWith('inc_') || data.startsWith('dec_') || data.startsWith('del_')) {
-  const id = parseInt(data.slice(4));
+    const id = parseInt(data.slice(4));
 
-  const allItems = [
-    ...(userData.uc || []),
-    ...(userData.popularity || []),
-    ...(userData.cars || []),
-    ...(userData.costumes || [])
-  ];
+    const allItems = [
+      ...(userData.uc || []),
+      ...(userData.popularity || []),
+      ...(userData.cars || []),
+      ...(userData.costumes || [])
+    ];
 
-  const itemIndex = allItems.findIndex(p => p.id === id);
-  if (itemIndex !== -1) {
-    const item = allItems[itemIndex];
+    const itemIndex = allItems.findIndex(p => p.id === id);
+    if (itemIndex !== -1) {
+      const item = allItems[itemIndex];
 
-    if (data.startsWith('inc_')) {
-      item.qty += 1;
-    } else if (data.startsWith('dec_')) {
-      item.qty -= 1;
-      if (item.qty <= 0) allItems.splice(itemIndex, 1);
-    } else if (data.startsWith('del_')) {
-      allItems.splice(itemIndex, 1);
+      if (data.startsWith('inc_')) {
+        // Check stock before increasing
+        try {
+          const res = await axios.get(`${process.env.API_URL || 'http://localhost:3001'}/admin/products/${id}`);
+          const stock = res.data?.stock ?? 0;
+          if (item.qty + 1 > stock) {
+            return ctx.answerCbQuery(`❌ Недостаточно товара на складе. Осталось: ${stock} шт.`, { show_alert: true });
+          }
+          item.qty += 1;
+        } catch (err) {
+          return ctx.answerCbQuery('❌ Ошибка при проверке наличия товара', { show_alert: true });
+        }
+      } else if (data.startsWith('dec_')) {
+        item.qty -= 1;
+        if (item.qty <= 0) allItems.splice(itemIndex, 1);
+      } else if (data.startsWith('del_')) {
+        allItems.splice(itemIndex, 1);
+      }
+
+      // Վերաբաշխում ըստ տեսակի
+      userData.uc = allItems.filter(p => p.type === 'auto');
+      userData.popularity = allItems.filter(p => p.type === 'manual');
+      userData.cars = allItems.filter(p => p.type === 'car');
+      userData.costumes = allItems.filter(p => p.type === 'costume');
+
+      userSelections.set(userId, userData);
     }
 
-    // Վերաբաշխում ըստ տեսակի
-    userData.uc = allItems.filter(p => p.type === 'auto');
-    userData.popularity = allItems.filter(p => p.type === 'manual');
-    userData.cars = allItems.filter(p => p.type === 'car');
-    userData.costumes = allItems.filter(p => p.type === 'costume');
-
-    userSelections.set(userId, userData);
+    return showCart(ctx);
   }
-
-  return showCart(ctx);
-}
-
 
   if (data === 'open_uc_catalog') {
     await ctx.answerCbQuery();
@@ -304,14 +349,14 @@ async function handleMessage(ctx) {
   // Only respond to 5-20 digit messages
   if (!/^\d{5,20}$/.test(message)) {
     ctx.state.handled = true;
-    return ctx.reply(lang.cart.invalid_id);
+    return ctx.reply('❌ Пожалуйста, введите корректный PUBG ID (только цифры, от 5 до 20 символов)');
   }
 
   // Verify PUBG ID
   const verification = await verifyPubgId(message, lang);
   ctx.state.handled = true;
   if (!verification.success) {
-    return ctx.reply(verification.message);
+    return ctx.reply(verification.message || '❌ Не удалось проверить PUBG ID. Пожалуйста, проверьте ID и попробуйте снова.');
   }
 
   // Show confirmation with nickname

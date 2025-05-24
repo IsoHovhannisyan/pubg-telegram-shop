@@ -142,6 +142,17 @@ router.patch('/:id', verifyToken, async (req, res) => {
   }
 
   try {
+    // Get the current order to check previous status and products
+    const orderResult = await db.query('SELECT * FROM orders WHERE id = $1', [id]);
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Заказ не найден' });
+    }
+    const order = orderResult.rows[0];
+    const prevStatus = order.status;
+    const products = Array.isArray(order.products)
+      ? order.products
+      : JSON.parse(order.products || '[]');
+
     // Only update status and nickname (if provided)
     let query, params;
     if (nickname !== undefined) {
@@ -157,10 +168,41 @@ router.patch('/:id', verifyToken, async (req, res) => {
       return res.status(404).json({ error: 'Заказ не найден' });
     }
 
+    // --- STOCK RESERVATION/RESTORATION LOGIC ---
+    // 1. Decrease stock ONLY when status changes to 'delivered'
+    if (status === 'delivered' && prevStatus !== 'delivered') {
+      for (const p of products) {
+        await db.query(
+          'UPDATE products SET stock = stock - $1 WHERE id = $2',
+          [p.qty, p.id]
+        );
+        await db.query(
+          `INSERT INTO stock_history (product_id, quantity, type, note)
+           VALUES ($1, $2, $3, $4)`,
+          [p.id, -p.qty, 'order', `Order #${id} delivered`]
+        );
+      }
+    }
+    // 2. Restore stock if moving to 'error' or 'canceled' from any other status
+    if ((status === 'error' || status === 'canceled') && prevStatus !== 'error' && prevStatus !== 'canceled') {
+      for (const p of products) {
+        await db.query(
+          'UPDATE products SET stock = stock + $1 WHERE id = $2',
+          [p.qty, p.id]
+        );
+        await db.query(
+          `INSERT INTO stock_history (product_id, quantity, type, note)
+           VALUES ($1, $2, $3, $4)`,
+          [p.id, p.qty, 'order', `Order #${id} restored (${status})`]
+        );
+      }
+    }
+    // --- END STOCK LOGIC ---
+
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('❌ Ошибка обновления статуса:', err.message);
-    res.status(500).json({ error: 'Ошибка базы данных' });
+    console.error('❌ Ошибка обновления статуса заказа:', err.message);
+    res.status(500).json({ error: 'Не удалось обновить статус заказа' });
   }
 });
 
@@ -198,6 +240,35 @@ router.get('/stats/summary', verifyToken, async (req, res) => {
   } catch (err) {
     console.error('❌ Ошибка получения статистики:', err.message);
     res.status(500).json({ error: 'Не удалось получить статистику' });
+  }
+});
+
+// Create a new order (for bot and admin panel)
+router.post('/', verifyToken, async (req, res) => {
+  const { user_id, pubg_id, products, status, time, nickname } = req.body;
+
+  if (!user_id || !products || !status || !time) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  try {
+    const result = await db.query(
+      `INSERT INTO orders (user_id, pubg_id, products, status, time, nickname)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        user_id,
+        pubg_id || null,
+        JSON.stringify(products),
+        status,
+        time,
+        nickname || null
+      ]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('❌ Ошибка создания заказа:', err.message);
+    res.status(500).json({ error: 'Не удалось создать заказ' });
   }
 });
 

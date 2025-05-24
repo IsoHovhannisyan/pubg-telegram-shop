@@ -91,6 +91,8 @@ const [form, setForm] = useState({
       }
 
       formData.append("status", form.active ? "active" : "inactive");
+      // Set type based on category
+      formData.append("type", form.category === "uc_by_id" ? "auto" : "manual");
 
       let response;
       if (editingId) {

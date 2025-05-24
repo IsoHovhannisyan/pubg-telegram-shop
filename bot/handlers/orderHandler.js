@@ -1,9 +1,20 @@
-const db = require('../db/connect');
+const axios = require('axios');
 require('dotenv').config();
 
 const generateFreekassaLink = require('../utils/freekassaLink');
 
 const MANAGER_IDS = process.env.MANAGER_CHAT_ID ? process.env.MANAGER_CHAT_ID.split(',') : [];
+const API_URL = process.env.API_URL || 'http://localhost:3001';
+const API_TOKEN = process.env.ADMIN_API_TOKEN;
+
+// Add axios instance with default headers
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Authorization': `Bearer ${API_TOKEN}`,
+    'Content-Type': 'application/json'
+  }
+});
 
 function formatItems(items) {
   return items.map(i => `▫️ ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
@@ -37,24 +48,27 @@ async function getProductCategories(items) {
 
   if (ids.length === 0) return items;
 
-  const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-  const res = await db.query(
-    `SELECT id, category FROM products WHERE id IN (${placeholders})`,
-    ids
-  );
+  try {
+    const res = await api.get('/admin/products', {
+      params: { ids: ids.join(',') }
+    });
+    
+    const categoryMap = {};
+    res.data.forEach(row => {
+      categoryMap[row.id] = row.category;
+    });
 
-  const categoryMap = {};
-  res.rows.forEach(row => {
-    categoryMap[row.id] = row.category;
-  });
-
-  return items.map(i => {
-    const parsedId = parseInt(i.id);
-    return {
-      ...i,
-      category: !isNaN(parsedId) ? (categoryMap[parsedId] || 'Без категории') : 'Без категории'
-    };
-  });
+    return items.map(i => {
+      const parsedId = parseInt(i.id);
+      return {
+        ...i,
+        category: !isNaN(parsedId) ? (categoryMap[parsedId] || 'Без категории') : 'Без категории'
+      };
+    });
+  } catch (err) {
+    console.error('Error fetching product categories:', err);
+    return items;
+  }
 }
 
 function getStatusLabel(status) {
@@ -102,28 +116,35 @@ async function registerOrder(ctx, pubgId, items, nickname) {
   console.log("Manual Items:", manualItems.length);
   console.log("Auto Items:", autoItems.length);
 
-  // Գրանցում բազայում
-  if (manualItems.length > 0) {
-    await db.query(
-      `INSERT INTO orders (user_id, pubg_id, products, time, status, nickname)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [userId, pubgId, JSON.stringify(manualItems), createdAt, 'manual_processing', nickname]
-    );
-    console.log('✅ Մանուալ պատվերը գրանցված է');
-  }
+  try {
+    // Register orders through admin panel API
+    if (manualItems.length > 0) {
+      await api.post('/admin/orders', {
+        user_id: userId,
+        pubg_id: pubgId,
+        products: manualItems,
+        time: createdAt,
+        status: 'unpaid',
+        nickname: nickname
+      });
+      console.log('✅ Manual order registered as unpaid');
+    }
 
-  if (autoItems.length > 0) {
-    await db.query(
-      `INSERT INTO orders (user_id, pubg_id, products, time, status, nickname)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [userId, pubgId, JSON.stringify(autoItems), createdAt, 'unpaid', nickname]
-    );
-    console.log('✅ Ավտոմատ պատվերը գրանցված է որպես unpaid');
-  }
+    if (autoItems.length > 0) {
+      await api.post('/admin/orders', {
+        user_id: userId,
+        pubg_id: pubgId,
+        products: autoItems,
+        time: createdAt,
+        status: 'unpaid',
+        nickname: nickname
+      });
+      console.log('✅ Auto order registered as unpaid');
+    }
 
-  // 🌟 Կառուցում ենք գեղեցիկ, հասկանալի վերջնական հաղորդագրություն
-  let finalMessage = `✅ <b>Ваш заказ успешно оформлен!</b>\n\n`;
-  finalMessage += `🎮 <b>PUBG ID:</b> <code>${pubgId}</code>\n`;
+    // 🌟 Build final message
+    let finalMessage = `✅ <b>Ваш заказ успешно оформлен!</b>\n\n`;
+    finalMessage += `🎮 <b>PUBG ID:</b> <code>${pubgId}</code>\n`;
     if (nickname) {
       finalMessage += `👤 <b>Никнейм:</b> ${nickname}\n`;
     }
@@ -135,42 +156,46 @@ async function registerOrder(ctx, pubgId, items, nickname) {
     finalMessage += `💵 <b>ОБЩАЯ СУММА:</b> <u>${fullSum} ₽</u>\n`;
     finalMessage += `━━━━━━━━━━━━━━━━━━━━\n`;
 
-  if (autoItems.length > 0) {
-    const ucSum = getTotal(autoItems);
-    const ucList = autoItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
-    const paymentPurpose = `PUBG ${pubgId} (${nickname}) • ${autoItems.map(i => i.title).join(', ')}`;
-    const payUrl = generateFreekassaLink(ctx.from.id, ucSum, paymentPurpose);
+    if (autoItems.length > 0) {
+      const ucSum = getTotal(autoItems);
+      const ucList = autoItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
+      const paymentPurpose = `PUBG ${pubgId} (${nickname}) • ${autoItems.map(i => i.title).join(', ')}`;
+      const payUrl = generateFreekassaLink(ctx.from.id, ucSum, paymentPurpose);
 
-    finalMessage += `💳 <b>Авто-доставка (UC):</b>\n${ucList}\n`;
-    finalMessage += `💰 <b>Сумма:</b> ${ucSum} ₽\n`;
-    finalMessage += `📦 <b>Статус:</b> ${getStatusLabel('unpaid')}\n`;
-    finalMessage += `🔗 <b>Оплатите заказ по ссылке:</b>\n${payUrl}\n`;
-    finalMessage += `━━━━━━━━━━━━━━━━━━━━\n`;
-  }
+      finalMessage += `💳 <b>Авто-доставка (UC):</b>\n${ucList}\n`;
+      finalMessage += `💰 <b>Сумма:</b> ${ucSum} ₽\n`;
+      finalMessage += `📦 <b>Статус:</b> ${getStatusLabel('unpaid')}\n`;
+      finalMessage += `🔗 <b>Оплатите заказ по ссылке:</b>\n${payUrl}\n`;
+      finalMessage += `━━━━━━━━━━━━━━━━━━━━\n`;
+    }
 
-  if (manualItems.length > 0) {
-    const manualList = manualItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
-    const manualSum = manualItems.reduce((sum, i) => sum + (i.price * i.qty), 0);
+    if (manualItems.length > 0) {
+      const manualList = manualItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
+      const manualSum = manualItems.reduce((sum, i) => sum + (i.price * i.qty), 0);
 
-    finalMessage += `🧍 <b>Ручная доставка:</b>\n${manualList}\n`;
-    finalMessage += `💰 <b>Сумма:</b> ${manualSum} ₽\n`;
-    finalMessage += `📦 <b>Статус:</b> ${getStatusLabel('manual_processing')}\n`;
-    finalMessage += `📞 <i>Менеджер скоро свяжется с вами в Telegram</i>\n`;
-  }
+      finalMessage += `🧍 <b>Ручная доставка:</b>\n${manualList}\n`;
+      finalMessage += `💰 <b>Сумма:</b> ${manualSum} ₽\n`;
+      finalMessage += `📦 <b>Статус:</b> ${getStatusLabel('pending')}\n`;
+      finalMessage += `📞 <i>Менеджер скоро свяжется с вами в Telegram</i>\n`;
+    }
 
-  // Send the final message
-  await ctx.replyWithHTML(finalMessage);
+    // Send the final message
+    await ctx.replyWithHTML(finalMessage);
 
-  // Notify managers if needed
-  if (manualItems.length > 0) {
-    const message = buildManagerMessage(ctx, pubgId, manualItems, nickname);
-    for (const managerId of MANAGER_IDS) {
-      try {
-        await ctx.telegram.sendMessage(managerId, message);
-      } catch (err) {
-        console.error(`❌ Չհաջողվեց ուղարկել մենեջերին (${managerId})`, err.message);
+    // Notify managers if needed
+    if (manualItems.length > 0) {
+      const message = buildManagerMessage(ctx, pubgId, manualItems, nickname);
+      for (const managerId of MANAGER_IDS) {
+        try {
+          await ctx.telegram.sendMessage(managerId, message);
+        } catch (err) {
+          console.error(`❌ Failed to send message to manager (${managerId})`, err.message);
+        }
       }
     }
+  } catch (err) {
+    console.error('Error registering order:', err);
+    await ctx.reply('❌ Произошла ошибка при оформлении заказа. Пожалуйста, попробуйте позже.');
   }
 }
 
