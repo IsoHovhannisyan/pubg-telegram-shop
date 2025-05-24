@@ -6,6 +6,7 @@ const API_URL = process.env.REACT_APP_API_URL;
 const MANUAL_CATEGORIES = ["POPULARITY_ID", "POPULARITY_HOME", "CARS", "COSTUMES"];
 
 const statusLabels = {
+  unpaid: "Не оплачен",
   pending: "В обработке",
   manual_processing: "Менеджер",
   delivered: "Доставлен",
@@ -16,6 +17,7 @@ export default function ManualPanel() {
   const [orders, setOrders] = useState([]);
   const [productsList, setProductsList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
 
   const token = localStorage.getItem("admin-token");
 
@@ -52,7 +54,36 @@ export default function ManualPanel() {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      fetchOrders();
+
+      // Send delivery notification if status is 'delivered'
+      if (status === 'delivered') {
+        const order = orders.find(o => o.id === orderId);
+        if (order && order.user_id) {
+          try {
+            await API.post(
+              `${API_URL}/admin/orders/notify-delivery`,
+              { 
+                userId: order.user_id,
+                orderId: order.id,
+                pubgId: order.pubg_id,
+                nickname: order.nickname
+              },
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              }
+            );
+          } catch (err) {
+            if (err.response?.data?.message) {
+              alert(`Статус обновлен, но ${err.response.data.message}`);
+            } else {
+              console.error("❌ Ошибка при отправке уведомления:", err);
+              alert("Статус обновлен, но не удалось отправить уведомление");
+            }
+          }
+        }
+      }
+
+      await fetchOrders();
     } catch (err) {
       console.error("❌ Ошибка при обновлении статуса:", err);
       alert("Не удалось обновить статус заказа");
@@ -62,6 +93,12 @@ export default function ManualPanel() {
   useEffect(() => {
     fetchOrders();
     fetchProducts();
+
+    const refreshInterval = setInterval(() => {
+      fetchOrders();
+    }, 10000);
+
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const getProductNameById = (id) => {
@@ -70,6 +107,12 @@ export default function ManualPanel() {
   };
 
   const manualOrders = orders.filter((o) => {
+    if (showArchived) {
+      if (o.status !== 'delivered') return false;
+    } else {
+      if (o.status === 'delivered') return false;
+    }
+
     const prods = Array.isArray(o.products)
       ? o.products
       : JSON.parse(o.products || "[]");
@@ -84,13 +127,104 @@ export default function ManualPanel() {
     );
   });
 
+  const getStatusButtons = (order) => {
+    const buttons = [];
+    
+    if (order.status === 'pending') {
+      buttons.push(
+        <button
+          key="take"
+          onClick={() => {
+            if (window.confirm("Взять заказ в обработку?")) {
+              updateStatus(order.id, "manual_processing");
+            }
+          }}
+          className="flex-1 px-3 py-2 bg-blue-100 text-blue-800 rounded-lg font-semibold hover:bg-blue-200 transition"
+        >
+          Взять в обработку
+        </button>
+      );
+    }
+
+    if (order.status === 'manual_processing') {
+      buttons.push(
+        <button
+          key="complete"
+          onClick={() => {
+            if (window.confirm("Отметить заказ как 'Доставлен'?")) {
+              updateStatus(order.id, "delivered");
+            }
+          }}
+          className="flex-1 px-3 py-2 bg-green-100 text-green-800 rounded-lg font-semibold hover:bg-green-200 transition"
+        >
+          Доставлен
+        </button>,
+        <button
+          key="error"
+          onClick={() => {
+            if (window.confirm("Отметить заказ как 'Ошибка'?")) {
+              updateStatus(order.id, "error");
+            }
+          }}
+          className="flex-1 px-3 py-2 bg-red-100 text-red-800 rounded-lg font-semibold hover:bg-red-200 transition"
+        >
+          Ошибка
+        </button>
+      );
+    }
+
+    if (order.status === 'error') {
+      buttons.push(
+        <button
+          key="retry"
+          onClick={() => {
+            if (window.confirm("Вернуть заказ в обработку?")) {
+              updateStatus(order.id, "manual_processing");
+            }
+          }}
+          className="flex-1 px-3 py-2 bg-yellow-100 text-yellow-800 rounded-lg font-semibold hover:bg-yellow-200 transition"
+        >
+          Вернуть в обработку
+        </button>
+      );
+    }
+
+    return buttons;
+  };
+
   return (
     <div className="min-h-screen p-6 bg-gradient-to-br from-blue-50 via-white to-pink-50">
-      <h2 className="text-4xl font-extrabold mb-8 text-center text-blue-900 drop-shadow">🧑‍💼 Ручная доставка</h2>
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-4xl font-extrabold text-center text-blue-900 drop-shadow">🧑‍💼 Ручная доставка</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowArchived(false)}
+            className={`px-4 py-2 rounded-lg font-semibold transition ${
+              !showArchived 
+                ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Активные
+          </button>
+          <button
+            onClick={() => setShowArchived(true)}
+            className={`px-4 py-2 rounded-lg font-semibold transition ${
+              showArchived 
+                ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Архив
+          </button>
+        </div>
+      </div>
       {loading ? (
         <p className="text-center text-lg text-blue-700 animate-pulse">Загрузка...</p>
       ) : manualOrders.length === 0 ? (
-        <p className="text-center text-gray-400 text-xl">Нет заказов для ручной обработки</p>
+        <p className="text-center text-gray-400 text-xl">
+          {showArchived ? 'Нет доставленных заказов' : 'Нет заказов для ручной обработки'}
+        </p>
       ) : (
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           {manualOrders.map((order) => {
@@ -125,42 +259,14 @@ export default function ManualPanel() {
                       ${order.status === 'manual_processing' ? 'bg-blue-100 text-blue-800' : ''}
                       ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : ''}
                       ${order.status === 'error' ? 'bg-red-100 text-red-800' : ''}
+                      ${order.status === 'unpaid' ? 'bg-gray-100 text-gray-800' : ''}
                     `}>
                       {statusLabels[order.status] || order.status}
                     </span>
                   </div>
                 </div>
                 <div className="flex gap-2 mt-2">
-                  <button
-                    onClick={() => {
-                      if (window.confirm("Отметить заказ как 'Менеджер'?")) {
-                        updateStatus(order.id, "manual_processing");
-                      }
-                    }}
-                    className="flex-1 px-3 py-2 bg-blue-100 text-blue-800 rounded-lg font-semibold hover:bg-blue-200 transition"
-                  >
-                    Менеджер
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (window.confirm("Отметить заказ как 'Доставлен'?")) {
-                        updateStatus(order.id, "delivered");
-                      }
-                    }}
-                    className="flex-1 px-3 py-2 bg-green-100 text-green-800 rounded-lg font-semibold hover:bg-green-200 transition"
-                  >
-                    Доставлен
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (window.confirm("Отметить заказ как 'Ошибка'?")) {
-                        updateStatus(order.id, "error");
-                      }
-                    }}
-                    className="flex-1 px-3 py-2 bg-red-100 text-red-800 rounded-lg font-semibold hover:bg-red-200 transition"
-                  >
-                    Ошибка
-                  </button>
+                  {getStatusButtons(order)}
                 </div>
               </div>
             );

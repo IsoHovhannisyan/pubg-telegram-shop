@@ -20,7 +20,7 @@ const Login = ({ setToken }) => {
 
       localStorage.setItem('admin-token', token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      setToken(token); // ✅ Վերահաստատում ենք՝ App-ը rerender անի
+      setToken(token);
       navigate('/dashboard');
     } catch (err) {
       console.error('Login error:', err);

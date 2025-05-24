@@ -38,8 +38,13 @@ router.get("/list-codes", async (req, res) => {
 
     const data = await response.json();
 
+    if (!Array.isArray(data)) {
+      console.error("❌ Invalid response format: data is not an array");
+      return res.status(500).json({ error: "Invalid response format from server" });
+    }
+
     // Ֆիլտրում ենք միայն test_uc կոդերը
-    const testCodes = data.filter((item) => item.productName === "test_uc");
+    const testCodes = data.filter((item) => item && item.productName === "test_uc");
 
     res.json({ testCodes });
   } catch (err) {

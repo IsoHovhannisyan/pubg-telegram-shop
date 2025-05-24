@@ -13,9 +13,9 @@ import Activator from './pages/Activator';
 import ManualPanel from './pages/ManualPanel';
 import Login from './pages/Login';
 import PrivateRoute from './components/PrivateRoute';
-import Settings from './pages/Settings';
 import UcCodes from './pages/UcCodes';
 import Referrals from './pages/Referrals';
+import Settings from './pages/Settings';
 import axios from 'axios';
 
 export default function App() {
@@ -94,12 +94,12 @@ export default function App() {
               <NavLink
                 to="/settings"
                 className={({ isActive }) =>
-                  isActive ? "underline text-blue-700 font-semibold" : "hover:underline"
+                  `flex items-center px-4 py-2 mt-2 text-gray-700 rounded-lg hover:bg-blue-100 transition ${isActive ? 'bg-blue-200 font-bold' : ''}`
                 }
               >
-                ⚙️ Настройки
+                <span className="material-icons mr-2">settings</span>
+                Настройки
               </NavLink>
-
             </nav>
             <button
               onClick={() => {
@@ -135,7 +135,7 @@ export default function App() {
             <Route path="/activator" element={<PrivateRoute><Activator /></PrivateRoute>} />
             <Route path="/manual" element={<PrivateRoute><ManualPanel /></PrivateRoute>} />
             <Route path="/uc-codes" element={<PrivateRoute><UcCodes /></PrivateRoute>} />
-            <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>}/>
+            <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
           </Routes>
         </main>
       </div>

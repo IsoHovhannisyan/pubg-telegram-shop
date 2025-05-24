@@ -1,28 +1,50 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { updateOrderStatus } from '../api';
 
 const API_URL = process.env.REACT_APP_API_URL;
 const ADMIN_TOKEN = process.env.REACT_APP_ADMIN_TOKEN;
 
+const MANUAL_CATEGORIES = ["POPULARITY_ID", "POPULARITY_HOME", "CARS", "COSTUMES"];
+
 const statusLabels = {
   unpaid: 'Не оплачен',
-  manual_processing: 'Обрабатывается вручную',
+  pending: 'В обработке',
+  manual_processing: 'Менеджер',
   delivered: 'Доставлен',
-  // add other statuses as needed
+  error: 'Ошибка'
 };
+
+const ITEMS_PER_PAGE = 10;
 
 export default function OrdersTable() {
   const [orders, setOrders] = useState([]);
+  const [productsList, setProductsList] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [status, setStatus] = useState('');
   const [deliveryNote, setDeliveryNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [processingOrder, setProcessingOrder] = useState(null);
 
   useEffect(() => {
     fetchOrders();
+    fetchProducts();
   }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/admin/products/admin`, {
+        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }
+      });
+      setProductsList(res.data);
+    } catch (err) {
+      console.error("❌ Ошибка при получении товаров:", err);
+    }
+  };
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -37,6 +59,23 @@ export default function OrdersTable() {
     setLoading(false);
   };
 
+  const needsManualProcessing = (order) => {
+    if (order.status === 'delivered') return false;
+
+    const prods = Array.isArray(order.products)
+      ? order.products
+      : JSON.parse(order.products || "[]");
+
+    return prods.some(
+      (p) =>
+        p.type === "manual" ||
+        MANUAL_CATEGORIES.includes(p.category) ||
+        productsList.find(
+          (pr) => pr.id === p.id && MANUAL_CATEGORIES.includes(pr.category)
+        )
+    );
+  };
+
   const openOrder = (order) => {
     setSelectedOrder(order);
     setStatus(order.status);
@@ -44,88 +83,344 @@ export default function OrdersTable() {
     setSaveMessage('');
   };
 
-  const updateStatus = async () => {
+  const updateStatus = async (orderId, status) => {
+    if (selectedOrder.status === 'unpaid' && status === 'delivered') {
+      setSaveMessage('Нельзя отметить неоплаченный заказ как доставленный!');
+      return;
+    }
+
     setSaving(true);
-    setSaveMessage('');
     try {
-      await axios.patch(`${API_URL}/admin/orders/${selectedOrder.id}`, {
+      await axios.patch(`${API_URL}/admin/orders/${orderId}`, {
         status,
         nickname: selectedOrder.nickname
       }, {
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }
       });
-      setSaveMessage('Успешно сохранено!');
-      setTimeout(() => {
-        setSelectedOrder(null);
-        fetchOrders();
-      }, 800);
+
+      // Send delivery notification if status is 'delivered'
+      if (status === 'delivered') {
+        const order = orders.find(o => o.id === orderId);
+        if (order && order.user_id) {
+          try {
+            await axios.post(
+              `${API_URL}/admin/orders/notify-delivery`,
+              { 
+                userId: order.user_id,
+                orderId: order.id,
+                pubgId: order.pubg_id,
+                nickname: order.nickname
+              },
+              {
+                headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+              }
+            );
+          } catch (err) {
+            if (err.response?.data?.message) {
+              alert(`Статус обновлен, но ${err.response.data.message}`);
+            } else {
+              console.error("❌ Ошибка при отправке уведомления:", err);
+              alert("Статус обновлен, но не удалось отправить уведомление");
+            }
+          }
+        }
+      }
+
+      await fetchOrders();
+      setSaveMessage('Статус успешно обновлен');
+      setTimeout(() => setSaveMessage(''), 3000);
     } catch (err) {
-      setSaveMessage('Ошибка сохранения!');
+      console.error("❌ Ошибка при обновлении статуса:", err);
+      setSaveMessage('Ошибка при обновлении статуса');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
+  };
+
+  const getAvailableStatuses = (order) => {
+    const statuses = [];
+    
+    if (order.status === 'unpaid') {
+      statuses.push(
+        { value: 'unpaid', label: 'Не оплачен' },
+        { value: 'pending', label: 'Подтвердить оплату' }
+      );
+      return statuses;
+    }
+    
+    statuses.push(
+      { value: 'pending', label: 'В обработке' },
+      { value: 'manual_processing', label: 'Менеджер' },
+      { value: 'delivered', label: 'Доставлен' },
+      { value: 'error', label: 'Ошибка' }
+    );
+    
+    return statuses;
+  };
+
+  const getProductNameById = (id) => {
+    const product = productsList.find(p => p.id === id);
+    return product ? product.name : id;
+  };
+
+  const formatProductList = (products) => {
+    if (!Array.isArray(products)) return '';
+    
+    return products.map(p => {
+      const productName = getProductNameById(p.id);
+      const type = p.type === 'auto' ? '(по входу)' : 
+                  p.type === 'manual' ? '(по ID)' :
+                  p.type === 'costume' ? '(X-Костюм)' : '';
+      return `${productName} × ${p.qty} ${type}`;
+    }).join(', ');
+  };
+
+  const filteredOrders = orders.filter(order => 
+    showArchived ? order.status === 'delivered' : order.status !== 'delivered'
+  );
+
+  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const currentOrders = filteredOrders.slice(startIndex, endIndex);
+
+  const handleStatusChange = async (orderId, newStatus) => {
+    try {
+      setProcessingOrder(orderId);
+      await updateOrderStatus(orderId, newStatus);
+      await fetchOrders();
+      setSaveMessage('Статус успешно обновлен');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      alert('Failed to update order status');
+    } finally {
+      setProcessingOrder(null);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'delivered':
+        return 'bg-green-100 text-green-800';
+      case 'manual_processing':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'pending':
+        return 'bg-blue-100 text-blue-800';
+      case 'unpaid':
+        return 'bg-gray-100 text-gray-800';
+      case 'error':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'delivered':
+        return 'Доставлен';
+      case 'manual_processing':
+        return 'Ручная обработка';
+      case 'pending':
+        return 'В обработке';
+      case 'unpaid':
+        return 'Неоплачен';
+      case 'error':
+        return 'Ошибка';
+      default:
+        return status;
+    }
   };
 
   return (
     <div className="w-full">
-      <h2 className="text-2xl font-bold mb-4">Таблица заказов</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Таблица заказов</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowArchived(false)}
+            className={`px-3 py-1 rounded ${!showArchived ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+          >
+            Активные
+          </button>
+          <button
+            onClick={() => setShowArchived(true)}
+            className={`px-3 py-1 rounded ${showArchived ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+          >
+            Архив
+          </button>
+        </div>
+      </div>
       {loading ? (
         <p>Загрузка...</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg shadow border border-gray-200">
-          <table className="min-w-full text-sm text-left">
-            <thead className="bg-gray-100 sticky top-0 z-10">
-              <tr>
-                <th className="p-3 font-semibold">ID</th>
-                <th className="p-3 font-semibold">Пользователь</th>
-                <th className="p-3 font-semibold">PUBG ID</th>
-                <th className="p-3 font-semibold">Никнейм</th>
-                <th className="p-3 font-semibold">Статус</th>
-                <th className="p-3 font-semibold">Дата</th>
-                <th className="p-3 font-semibold">Товары</th>
-                <th className="p-3 font-semibold">Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order, idx) => (
-                <tr
-                  key={order.id}
-                  className={
-                    `transition hover:bg-blue-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`
-                  }
-                >
-                  <td className="p-3 font-semibold text-gray-800">{order.id}</td>
-                  <td className="p-3">{order.user_id}</td>
-                  <td className="p-3">{order.pubg_id}</td>
-                  <td className="p-3">{order.nickname}</td>
-                  <td className="p-3">{statusLabels[order.status] || order.status}</td>
-                  <td className="p-3">{new Date(order.time).toLocaleString()}</td>
-                  <td className="p-3">{Array.isArray(order.products) ? order.products.map(p => `${p.name || p.id} x${p.qty}`).join(', ') : ''}</td>
-                  <td className="p-3">
-                    <button
-                      className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
-                      onClick={() => openOrder(order)}
-                    >
-                      Подробнее
-                    </button>
-                  </td>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    PUBG ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Продукт
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Сумма
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Статус
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Дата
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Действия
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {currentOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {order.id}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {order.pubg_id}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {order.product_name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {order.amount} ₽
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                        {getStatusLabel(order.status)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {new Date(order.created_at).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <select
+                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                        value={order.status}
+                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                        disabled={processingOrder === order.id}
+                      >
+                        {getAvailableStatuses(order).map(status => (
+                          <option key={status.value} value={status.value}>
+                            {status.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+              <div className="flex-1 flex justify-between sm:hidden">
+                <button
+                  onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Назад
+                </button>
+                <button
+                  onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
+                  disabled={currentPage === totalPages}
+                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Вперед
+                </button>
+              </div>
+              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm text-gray-700">
+                    Показано <span className="font-medium">{startIndex + 1}</span> -{' '}
+                    <span className="font-medium">{Math.min(endIndex, filteredOrders.length)}</span> из{' '}
+                    <span className="font-medium">{filteredOrders.length}</span> заказов
+                  </p>
+                </div>
+                <div>
+                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button
+                      onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
+                      disabled={currentPage === 1}
+                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                    >
+                      <span className="sr-only">Previous</span>
+                      &laquo;
+                    </button>
+                    {[...Array(totalPages)].map((_, index) => (
+                      <button
+                        key={index + 1}
+                        onClick={() => setCurrentPage(index + 1)}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                          currentPage === index + 1
+                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {index + 1}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
+                      disabled={currentPage === totalPages}
+                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                    >
+                      <span className="sr-only">Next</span>
+                      &raquo;
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {selectedOrder && (
         <>
-          {/* Backdrop */}
           <div className="fixed inset-0 bg-black bg-opacity-40 z-40" onClick={() => setSelectedOrder(null)} />
-          {/* Modal */}
           <div className="fixed top-1/2 left-1/2 z-50 bg-white rounded-lg shadow-lg p-6 w-full max-w-md transform -translate-x-1/2 -translate-y-1/2">
-            <h3 className="text-xl font-bold mb-2">Заказ #{selectedOrder.id}</h3>
+            <h3 className="text-xl font-bold mb-2">
+              Заказ #{selectedOrder.id}
+              {needsManualProcessing(selectedOrder) && (
+                <span className="ml-2 text-sm text-blue-600">(Ручная обработка)</span>
+              )}
+            </h3>
             <p className="mb-1">Пользователь: <span className="font-mono">{selectedOrder.user_id}</span></p>
             <p className="mb-1">PUBG ID: <span className="font-mono">{selectedOrder.pubg_id}</span></p>
             <p className="mb-1">Никнейм: <span className="font-mono">{selectedOrder.nickname}</span></p>
-            <p className="mb-2">Товары: <span className="font-mono">{Array.isArray(selectedOrder.products) ? selectedOrder.products.map(p => `${p.name || p.id} x${p.qty}`).join(', ') : ''}</span></p>
+            <div className="mb-2">
+              <span className="block mb-1 font-medium">Товары:</span>
+              <ul className="list-disc pl-5 text-sm">
+                {Array.isArray(selectedOrder.products) ? selectedOrder.products.map((p, i) => {
+                  const productName = getProductNameById(p.id);
+                  const type = p.type === 'auto' ? '(по входу)' : 
+                              p.type === 'manual' ? '(по ID)' :
+                              p.type === 'costume' ? '(X-Костюм)' : '';
+                  return (
+                    <li key={i} className="text-gray-700">
+                      {productName} × {p.qty} {type}
+                    </li>
+                  );
+                }) : []}
+              </ul>
+            </div>
             <label className="block mb-2">
               <span className="block mb-1">Статус:</span>
               <select
@@ -134,10 +429,11 @@ export default function OrdersTable() {
                 onChange={e => setStatus(e.target.value)}
                 disabled={saving}
               >
-                <option value="unpaid">Не оплачен</option>
-                <option value="manual_processing">Обрабатывается вручную</option>
-                <option value="delivered">Доставлен</option>
-                {/* add other statuses as needed */}
+                {getAvailableStatuses(selectedOrder).map(status => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="block mb-2">
@@ -155,7 +451,7 @@ export default function OrdersTable() {
             <div className="flex gap-2 mt-4">
               <button
                 className={`flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition ${saving ? 'opacity-60 cursor-not-allowed' : ''}`}
-                onClick={updateStatus}
+                onClick={() => updateStatus(selectedOrder.id, status)}
                 disabled={saving}
               >
                 {saving ? 'Сохраняется...' : 'Сохранить'}

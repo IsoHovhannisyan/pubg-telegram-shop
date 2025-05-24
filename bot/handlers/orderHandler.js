@@ -78,6 +78,13 @@ async function registerOrder(ctx, pubgId, items, nickname) {
   const userId = ctx.from.id;
   const createdAt = new Date();
 
+  // Defensive check: if any item requires a PUBG ID, and pubgId is missing/invalid, show error and do not insert
+  const needsPubgId = items.some(i => i.type === 'auto' || i.type === 'manual');
+  if (needsPubgId && (!pubgId || typeof pubgId !== 'string' || !/^\d{5,20}$/.test(pubgId))) {
+    await ctx.reply('❌ Для этого заказа требуется корректный PUBG ID. Пожалуйста, начните заказ заново и введите правильный ID.');
+    return;
+  }
+
   const categorizedItems = await getProductCategories(items);
 
   const autoItems = categorizedItems.filter(
@@ -142,20 +149,19 @@ async function registerOrder(ctx, pubgId, items, nickname) {
   }
 
   if (manualItems.length > 0) {
-  const manualList = manualItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
-  const manualSum = manualItems.reduce((sum, i) => sum + (i.price * i.qty), 0);
+    const manualList = manualItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
+    const manualSum = manualItems.reduce((sum, i) => sum + (i.price * i.qty), 0);
 
-  finalMessage += `🧍 <b>Ручная доставка:</b>\n${manualList}\n`;
-  finalMessage += `💰 <b>Сумма:</b> ${manualSum} ₽\n`;
-  finalMessage += `📦 <b>Статус:</b> ${getStatusLabel('manual_processing')}\n`;
-  finalMessage += `📞 <i>Менеджер скоро свяжется с вами в Telegram</i>\n`;
-}
+    finalMessage += `🧍 <b>Ручная доставка:</b>\n${manualList}\n`;
+    finalMessage += `💰 <b>Сумма:</b> ${manualSum} ₽\n`;
+    finalMessage += `📦 <b>Статус:</b> ${getStatusLabel('manual_processing')}\n`;
+    finalMessage += `📞 <i>Менеджер скоро свяжется с вами в Telegram</i>\n`;
+  }
 
-
-  // Ուղարկել ընդամենը 1 գեղեցիկ հաղորդագրություն
+  // Send the final message
   await ctx.replyWithHTML(finalMessage);
 
-  // Ուղարկել մենեջերին, եթե պետք է
+  // Notify managers if needed
   if (manualItems.length > 0) {
     const message = buildManagerMessage(ctx, pubgId, manualItems, nickname);
     for (const managerId of MANAGER_IDS) {
@@ -168,14 +174,4 @@ async function registerOrder(ctx, pubgId, items, nickname) {
   }
 }
 
-
-
-
 module.exports = registerOrder;
-
-
-
-
-
-
-

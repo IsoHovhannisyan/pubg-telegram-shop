@@ -51,17 +51,6 @@ app.use(require('./routes/lang'));
 ////// redeem
 app.use('/activator', activatorRoutes);
 
-// 📥 Բերել պատվերները
-app.get('/admin/orders', verifyToken, async (req, res) => {
-  try {
-    const result = await db.query('SELECT * FROM orders ORDER BY time DESC LIMIT 50');
-    res.json(result.rows);
-  } catch (err) {
-    console.error("❌ DB error:", err.message);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
 // 📥 Բերել միայն ձեռքով մշակվող պատվերները
 app.get('/admin/orders/manual', verifyToken, async (req, res) => {
   try {

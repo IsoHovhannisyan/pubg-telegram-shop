@@ -19,22 +19,14 @@ const carsHandler = require('./handlers/cars');
 const db = require('./db/connect');
 const { handleUserIdSubmission } = require('./handlers/sendOrderToCorrectTarget');
 const costumesHandler = require('./handlers/xcostumes');
-const getShopStatus = require('./utils/getShopStatus');
-const checkShopOpen = require('./middlewares/checkShopOpen');
 const referralsHandler = require('./handlers/referrals');
+const checkShopStatus = require('./middlewares/checkShopStatus');
 
 const getLang = require('./utils/getLang');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-bot.use(async (ctx, next) => {
-  // Ստուգում ենք միայն տեքստեր, command-ներ և callback-ներ
-  if (ctx.updateType === 'message' || ctx.updateType === 'callback_query') {
-    return checkShopOpen(ctx, next);
-  }
-  return next();
-});
-
+bot.use(checkShopStatus);
 
 // 📦 start-команда
 bot.start(async (ctx) => {
@@ -157,7 +149,15 @@ bot.on('callback_query', async (ctx) => {
 });
 
 // 🧾 Ввод PUBG ID
-bot.on('text', handleUserIdSubmission);
+bot.on('text', async (ctx) => {
+  // First try the cart handler for PUBG ID verification
+  await cartHandler.handleMessage(ctx);
+  
+  // If the message wasn't handled by cart handler, try the user ID submission
+  if (!ctx.state.handled) {
+    await handleUserIdSubmission(ctx);
+  }
+});
 
 // ▶️ Запуск бота
 bot.launch();

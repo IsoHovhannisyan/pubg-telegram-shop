@@ -3,6 +3,61 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../bot/db/connect');
 const verifyToken = require('./verifyToken');
+const bot = require('../../bot/instance');
+
+// Notify user about delivery - must be before parameterized routes
+router.post('/notify-delivery', verifyToken, async (req, res) => {
+  const { userId, orderId, pubgId, nickname } = req.body;
+
+  try {
+    const result = await db.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+    const order = result.rows[0];
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const products = Array.isArray(order.products) 
+      ? order.products 
+      : JSON.parse(order.products || "[]");
+
+    const itemsText = products.map(p => 
+      `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
+    ).join('\n');
+
+    const message = `
+✅ <b>Ваш заказ доставлен!</b>
+
+🎮 PUBG ID: <code>${pubgId}</code>
+${nickname ? `👤 Никнейм: ${nickname}\n` : ''}
+
+${itemsText}
+
+💰 Сумма: ${order.total} ₽
+
+Спасибо за покупку! 🎉
+    `;
+
+    try {
+      await bot.telegram.sendMessage(userId, message, { parse_mode: 'HTML' });
+      res.json({ success: true });
+    } catch (botError) {
+      // Handle specific Telegram bot errors
+      if (botError.message.includes('chat not found') || 
+          botError.message.includes('bot was blocked') ||
+          botError.message.includes('user is deactivated')) {
+        return res.status(400).json({ 
+          error: 'chat not found',
+          message: 'Пользователь заблокировал бота или не нажал Start'
+        });
+      }
+      throw botError; // Re-throw other errors
+    }
+  } catch (err) {
+    console.error('❌ Delivery notification error:', err.message);
+    res.status(500).json({ error: 'Failed to send notification' });
+  }
+});
 
 // Получить все заказы с фильтрацией
 router.get('/', verifyToken, async (req, res) => {
@@ -16,35 +71,34 @@ router.get('/', verifyToken, async (req, res) => {
 
   try {
     let query = `
-      SELECT o.*, u.username
-      FROM orders o
-      LEFT JOIN users u ON o.user_id = u.telegram_id
+      SELECT id, user_id, pubg_id, products, status, time, nickname
+      FROM orders
       WHERE 1=1
     `;
     const params = [];
     let paramCount = 1;
 
     if (status) {
-      query += ` AND o.status = $${paramCount}`;
+      query += ` AND status = $${paramCount}`;
       params.push(status);
       paramCount++;
     }
 
     if (startDate) {
-      query += ` AND o.time >= $${paramCount}`;
+      query += ` AND time >= $${paramCount}`;
       params.push(startDate);
       paramCount++;
     }
 
     if (endDate) {
-      query += ` AND o.time <= $${paramCount}`;
+      query += ` AND time <= $${paramCount}`;
       params.push(endDate);
       paramCount++;
     }
 
     // Добавить пагинацию
     const offset = (page - 1) * limit;
-    query += ` ORDER BY o.time DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+    query += ` ORDER BY time DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
     params.push(limit, offset);
 
     const result = await db.query(query, params);

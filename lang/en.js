@@ -1,6 +1,11 @@
 module.exports = {
   start: {
-    welcome: "Welcome to the PUBG UC Bot 📦\nYou can select UC packages using the buttons below."
+    welcome: "🎮 Welcome to PUBG UC Bot!\n\n" +
+            "✨ Here you can:\n" +
+            "• Buy UC for PUBG Mobile\n" +
+            "• Get popularity\n" +
+            "• Purchase cars and costumes\n\n" +
+            "🛍 Choose a category from the menu below 👇"
   },
   errors: {
     cart_load_failed: "❌ Failed to load your cart."

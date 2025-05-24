@@ -7,6 +7,8 @@ const userSelections = require('../utils/userSelections');
 const axios = require('axios');
 const getAvailableProducts = require('../utils/getAvailableProducts');
 const getLang = require('../utils/getLang');
+const verifyPubgId = require('../utils/pubgVerification');
+const registerOrder = require('./orderHandler');
 require('dotenv').config();
 
 
@@ -154,21 +156,23 @@ async function callbackQuery(ctx) {
       return ctx.reply(lang.cart.select_first);
     }
 
-    let available = [];
-    try {
-      available = await getAvailableProducts();
-    } catch (err) {
-      console.warn('⚠️ getAvailableProducts fallback in confirm_order');
+    // Check if any items require PUBG ID
+    const needsPubgId = userData.uc.some(item => item.type === 'auto') || 
+                       userData.popularity.some(item => item.type === 'manual');
+
+    if (needsPubgId) {
+      userData.expectingId = true;
+      userSelections.set(userId, userData);
+      return ctx.reply(
+        `${lang.cart.enter_id}\n\n` +
+        `⚠️ <b>Важно:</b> Введите только цифры вашего PUBG ID.\n` +
+        `После ввода ID мы проверим его и покажем ваш никнейм для подтверждения.`,
+        { parse_mode: 'HTML' }
+      );
     }
-    const unavailableItems = userData.uc.filter(item =>
-      item.type === 'auto' && available.length > 0 && !available.includes(item.id)
-    );
-    if (unavailableItems.length > 0) {
-      return ctx.reply(`❌ ${lang.catalog.uc_issues_title}\n\n${unavailableItems.map(i => `▫️ ${i.title}`).join('\n')}\n\n${lang.catalog.please_edit_cart}`);
-    }
-    userData.expectingId = true;
-    userSelections.set(userId, userData);
-    return ctx.reply(lang.cart.enter_id);
+
+    // If no PUBG ID needed, proceed with order
+    return registerOrder(ctx, null, [...userData.uc, ...userData.popularity, ...userData.cars, ...userData.costumes]);
   }
 
   if (data === 'cancel_order') {
@@ -260,9 +264,88 @@ async function callbackQuery(ctx) {
   return ctx.answerCbQuery(lang.unknown_action);
 }
 
-exports.showCart = showCart;
-exports.callbackQuery = callbackQuery;
-exports.getPubgNickname = getPubgNickname;
+// Add message handler for PUBG ID input
+async function handleMessage(ctx) {
+  const userId = ctx.from.id;
+  const lang = await getLang(ctx);
+  const userData = userSelections.get(userId);
+  
+  // Only proceed if we're expecting an ID
+  if (!userData?.expectingId) return;
+  
+  const message = ctx.message.text.trim();
+  
+  // List of known menu/button texts (Russian and English)
+  const menuButtons = [
+    lang.menu.catalog,
+    lang.menu.cart,
+    lang.menu.orders,
+    lang.menu.popularity,
+    lang.menu.shop,
+    lang.menu.referrals,
+    lang.buttons.open_catalog,
+    lang.buttons.confirm,
+    lang.buttons.cancel,
+    lang.buttons.add_more,
+    lang.buttons.to_cart,
+    lang.buttons.uc_catalog,
+    lang.buttons.popularity_catalog,
+    lang.buttons.back,
+    lang.buttons.cars,
+    lang.buttons.go_to_cart
+  ];
+
+  // Ignore commands and menu/button texts
+  if (message.startsWith('/') || menuButtons.includes(message)) {
+    ctx.state.handled = true;
+    return;
+  }
+
+  // Only respond to 5-20 digit messages
+  if (!/^\d{5,20}$/.test(message)) {
+    ctx.state.handled = true;
+    return ctx.reply(lang.cart.invalid_id);
+  }
+
+  // Verify PUBG ID
+  const verification = await verifyPubgId(message, lang);
+  ctx.state.handled = true;
+  if (!verification.success) {
+    return ctx.reply(verification.message);
+  }
+
+  // Show confirmation with nickname
+  userData.id = message;
+  userData.nickname = verification.nickname;
+  userData.expectingId = false;
+  userSelections.set(userId, userData);
+
+  await ctx.reply(
+    `✅ <b>PUBG ID подтвержден!</b>\n\n` +
+    `🎮 <b>ID:</b> <code>${message}</code>\n` +
+    `👤 <b>Никнейм:</b> ${verification.nickname}\n\n` +
+    `Ваш заказ оформлен и ожидает оплаты или обработки. Спасибо!`,
+    { parse_mode: 'HTML' }
+  );
+
+  // Register the order and reset the cart/state
+  await registerOrder(ctx, message, [...(userData.uc || []), ...(userData.popularity || []), ...(userData.cars || []), ...(userData.costumes || [])], verification.nickname);
+  userSelections.delete(userId);
+}
+
+const statusLabels = {
+  pending: "В обработке",
+  manual_processing: "Менеджер",
+  delivered: "Доставлен",
+  error: "Ошибка",
+};
+
+module.exports = {
+  showCart,
+  callbackQuery,
+  handleMessage,
+  getPubgNickname
+};
 
 
 
