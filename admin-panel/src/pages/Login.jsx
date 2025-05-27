@@ -7,11 +7,12 @@ const Login = ({ setToken }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const API_URL = process.env.REACT_APP_API_URL;
 
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('http://localhost:3001/admin/login', {
+      const res = await axios.post(`${API_URL}/admin/login`, {
         username,
         password
       });

@@ -4,7 +4,7 @@
 
 const { Telegraf, Markup } = require('telegraf');
 require('dotenv').config();
-require('../admin-api/adminApi');
+// require('../admin-api/adminApi');
 const express = require('express');
 const bodyParser = require('body-parser');
 
