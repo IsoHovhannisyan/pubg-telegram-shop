@@ -1,28 +1,31 @@
 const { Markup } = require('telegraf');
-const db = require('../db/connect');
+const axios = require('axios');
 const userSelections = require('../utils/userSelections');
-
 const getLang = require('../utils/getLang');
 
-// 📋 Ցուցադրում է popular by ID մենյուն՝ բազայից
+const API_URL = process.env.API_URL || 'http://localhost:3001';
+
+// 📋 Показывает popular by ID меню через admin-api
 module.exports = async (ctx) => {
   const lang = await getLang(ctx);
 
   let items = [];
   try {
-    const res = await db.query(`
-      SELECT id, name, price FROM products
-      WHERE category = 'popularity_by_id' AND status = 'active'
-      ORDER BY price ASC
-    `);
-    items = res.rows;
+    const res = await axios.get(`${API_URL}/admin/products`, {
+      params: {
+        category: 'popularity_by_id',
+        status: 'active'
+      }
+    });
+    items = res.data.filter(item => item.stock > 0)
+      .sort((a, b) => a.price - b.price);
   } catch (err) {
-    console.error("❌ Popular by ID DB error:", err.message);
-    return ctx.reply("⚠️ Ժամանակավորապես անհասանելի է։");
+    console.error("❌ Popular by ID API error:", err.message);
+    return ctx.reply("⚠️ Временно недоступно.");
   }
 
   if (!items.length) {
-    return ctx.reply("⚠️ Ժամանակավորապես անհասանելի է։");
+    return ctx.reply("⚠️ Временно недоступно.");
   }
 
   const rows = items.map(item => [
@@ -31,11 +34,11 @@ module.exports = async (ctx) => {
   rows.push([Markup.button.callback(lang.buttons.to_cart, "go_to_cart")]);
 
   await ctx.reply(
-    lang.catalog.select_popularity || "📢 Ընտրիր популярность փաթեթ",
+    lang.catalog.select_popularity || "📢 Выберите пакет популярности",
     Markup.inlineKeyboard(rows)
   );
 
-  // Պահում ենք cache
+  // Кэшируем
   const userId = ctx.from.id;
   const userData = userSelections.get(userId) || { uc: [], popularity: [], id: null };
   userData._popularityList = items;
@@ -67,16 +70,16 @@ module.exports.callbackQuery = async (ctx) => {
   const existing = userData.popularity.find(p => p.id === item.id);
   if (existing) {
     // Fetch current stock from DB
-    const res = await db.query('SELECT stock FROM products WHERE id = $1', [item.id]);
-    const stock = res.rows[0]?.stock ?? 0;
+    const res = await axios.get(`${API_URL}/admin/products/${item.id}/stock`);
+    const stock = res.data?.stock ?? 0;
     if (existing.qty + 1 > stock) {
       return ctx.answerCbQuery(`❌ Недостаточно товара на складе. Осталось: ${stock} шт.`, { show_alert: true });
     }
     existing.qty += 1;
   } else {
     // Fetch current stock from DB
-    const res = await db.query('SELECT stock FROM products WHERE id = $1', [item.id]);
-    const stock = res.rows[0]?.stock ?? 0;
+    const res = await axios.get(`${API_URL}/admin/products/${item.id}/stock`);
+    const stock = res.data?.stock ?? 0;
     if (stock <= 0) {
       return ctx.answerCbQuery('❌ Товар закончился', { show_alert: true });
     }
@@ -93,7 +96,7 @@ module.exports.callbackQuery = async (ctx) => {
 
   const lang = await getLang(ctx);
   await ctx.reply(
-    `${item.name} ✅ ${lang.catalog.added}\n🗃 В наличии: ${(await db.query('SELECT stock FROM products WHERE id = $1', [item.id])).rows[0]?.stock ?? 0} шт.`,
+    `${item.name} ✅ ${lang.catalog.added}\n🗃 В наличии: ${(await axios.get(`${API_URL}/admin/products/${item.id}/stock`)).data?.stock ?? 0} шт.`,
     Markup.inlineKeyboard([
       [Markup.button.callback(lang.buttons.to_cart, "go_to_cart")]
     ])

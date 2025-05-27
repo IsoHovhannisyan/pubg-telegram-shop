@@ -12,7 +12,8 @@ module.exports = async (ctx) => {
   let items = [];
   try {
     const res = await axios.get(`${API_URL}/products?category=popularity_home_by_id`);
-    items = res.data;
+    items = res.data.filter(item => item.stock > 0)
+      .sort((a, b) => a.price - b.price);
   } catch (err) {
     console.error("❌ Popular Home fetch error:", err.message);
     return ctx.reply("⚠️ Ժամանակավորապես անհասանելի է։");

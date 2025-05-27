@@ -4,19 +4,27 @@ const userSelections = require('../utils/userSelections');
 const { getPubgNickname } = require('./cart');
 const getLang = require('../utils/getLang');
 const registerOrder = require('./orderHandler');
+const axios = require('axios');
+const API_URL = process.env.API_URL || 'http://localhost:3001';
 
 async function getProductCategories(items) {
   const ids = items.map(i => parseInt(i.id)).filter(id => !isNaN(id));
   if (ids.length === 0) return items;
 
-  const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-  const res = await db.query(
-    `SELECT id, category FROM products WHERE id IN (${placeholders})`,
-    ids
-  );
+  // Получаем продукты через admin-api
+  let products = [];
+  try {
+    const res = await axios.get(`${API_URL}/admin/products`, {
+      params: { ids: ids.join(',') }
+    });
+    products = res.data;
+  } catch (err) {
+    console.error('❌ API error при получении категорий товаров:', err.message);
+    return items.map(i => ({ ...i, category: 'Без категории' }));
+  }
 
   const categoryMap = {};
-  res.rows.forEach(row => {
+  products.forEach(row => {
     categoryMap[row.id] = row.category;
   });
 

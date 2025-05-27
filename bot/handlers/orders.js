@@ -1,5 +1,5 @@
 const { Markup } = require('telegraf');
-const db = require('../db/connect');
+const axios = require('axios');
 const userSelections = require('../utils/userSelections');
 require('dotenv').config();
 const getLang = require('../utils/getLang');
@@ -7,25 +7,28 @@ const getLang = require('../utils/getLang');
 module.exports = async (ctx) => {
   const userId = ctx.from.id;
   const lang = await getLang(ctx);
+  const API_URL = process.env.API_URL || 'http://localhost:3001';
+  const API_TOKEN = process.env.ADMIN_API_TOKEN;
 
   try {
-    const result = await db.query(
-      'SELECT pubg_id, products, status, time FROM orders WHERE user_id = $1 ORDER BY time ASC',
-      [userId]
-    );
+    const res = await axios.get(`${API_URL}/admin/orders`, {
+      headers: { Authorization: `Bearer ${API_TOKEN}` },
+      params: { user_id: userId, limit: 100, page: 1 }
+    });
+    const orders = res.data;
 
-    if (result.rows.length === 0) {
-          return ctx.reply(
-  `${lang.orders.no_orders}\n${lang.catalog.select_uc}`,
-  Markup.inlineKeyboard([
-    [Markup.button.callback('🛍 Магазин', 'open_shop_menu')]
-  ])
-);
+    if (!orders.length) {
+      return ctx.reply(
+        `${lang.orders.no_orders}\n${lang.catalog.select_uc}`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback('🛍 Магазин', 'open_shop_menu')]
+        ])
+      );
     }
 
     // Group orders with same timestamp and pubg_id
     const groupedOrders = [];
-    for (const row of result.rows) {
+    for (const row of orders) {
       const lastGroup = groupedOrders[groupedOrders.length - 1];
       const currentTime = new Date(row.time).getTime();
       const products = Array.isArray(row.products) ? row.products : JSON.parse(row.products);
@@ -60,7 +63,7 @@ module.exports = async (ctx) => {
 
     await ctx.reply(message);
   } catch (err) {
-    console.error("❌ Ошибка при получении заказов:", err.message);
+    console.error('❌ Ошибка при получении заказов:', err.message);
     await ctx.reply(lang.orders.error);
   }
 };
@@ -90,7 +93,6 @@ module.exports.callbackQuery = async (ctx) => {
       Markup.inlineKeyboard([
         [
           [Markup.button.callback('🛍 Магазин', 'open_shop_menu')]
-
         ]
       ])
     );

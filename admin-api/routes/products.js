@@ -6,6 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const sharp = require('sharp'); 
 const fs = require('fs'); // ✅ Ավելացված է
+const uploadToS3 = require('../utils/uploadToS3');
 
 const sendProductPreview = require('../utils/sendProductPreview'); 
 
@@ -61,15 +62,20 @@ router.post('/', verifyToken, upload.single('image'), async (req, res) => {
     isPreview // ⬅️ Ավելացվել է
   } = req.body;
 
-  const image = req.file?.filename || null;
-
-  if (image) {
-    const imagePath = path.join(__dirname, '..', '..', 'uploads', image);
+  let imageUrl = null;
+  let localImagePath = null;
+  if (req.file) {
+    const imagePath = path.join(__dirname, '..', '..', 'uploads', req.file.filename);
     await sharp(imagePath)
       .resize(800, 800, { fit: 'inside' })
+      .jpeg({ quality: 80 })
       .toFile(imagePath + '_resized.jpg');
     fs.unlinkSync(imagePath);
     fs.renameSync(imagePath + '_resized.jpg', imagePath);
+    const s3FileName = req.file.originalname.replace(/\.[^/.]+$/, '') + '.jpg';
+    imageUrl = await uploadToS3(imagePath, s3FileName, 'products/');
+    localImagePath = imagePath;
+    // Do NOT delete imagePath here; wait until after preview is sent
   }
 
   if (!name || !price || !stock || !category) {
@@ -79,42 +85,32 @@ router.post('/', verifyToken, upload.single('image'), async (req, res) => {
   }
 
   try {
-    // ✅ Եթե preview է՝ ուղարկում ենք Telegram ու դուրս ենք գալիս
-    if (telegramId && image && isPreview === 'true') {
-      const caption = `🆕 Նոր ապրանքի նախադիտում:\n\n📦 Անուն: *${name}*\n💰 Գին: *${price}₽*\n🗂 Կատեգորիա: *${category}*\n🧩 Տեսակ: *${type === 'auto' ? 'Ավտոմատ' : 'Մանուալ'}*`;
-
-      const imagePath = path.join(__dirname, '..', '..', 'uploads', image);
-
-      try {
-        await sendProductPreview(telegramId, image, caption);
-      } catch (err) {
-      console.error("❌ Preview ուղարկման սխալ:", err.message);
+    if (telegramId && isPreview === 'true') {
+      const caption = `🆕 Предпросмотр нового товара:\n\n📦 Название: *${name}*\n💰 Цена: *${price}₽*\n🗂 Категория: *${category}*\n🧩 Тип: *${type === 'auto' ? 'Автомат' : 'Вручную'}*`;
+      await require('../utils/sendProductPreview')(telegramId, localImagePath, caption, true);
+      // Now safe to delete the local file
+      if (localImagePath && fs.existsSync(localImagePath)) {
+        fs.unlinkSync(localImagePath);
       }
-
-  // ✅ Ջնջում ենք նկարը preview-ից հետո
-  try {
-    if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
+      return res.json({ previewSent: true });
     }
-  } catch (err) {
-    console.warn("⚠️ Չհաջողվեց ջնջել preview նկարը:", err.message);
-  }
-
-  return res.json({ previewSent: true });
-}
-
 
     // ✅ Իրական ապրանքի ավելացում բազա
     await db.query(
       `INSERT INTO products (name, price, stock, category, image, type, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [name, price, stock, category, image, type || 'manual', status || 'active']
+      [name, price, stock, category, imageUrl, type || 'manual', status || 'active']
     );
 
-    // ✅ Ուղարկում ենք Telegram իրական ավելացման դեպքում
-    if (telegramId && image) {
-      const caption = `🆕 Նոր ապրանք ավելացվել է:\n\n📦 Անուն: *${name}*\n💰 Գին: *${price}₽*\n🗂 Կատեգորիա: *${category}*\n🧩 Տեսակ: *${type === 'auto' ? 'Ավտոմատ' : 'Մանուալ'}*`;
-      await sendProductPreview(telegramId, image, caption);
+    // ✅ Отправляем в Telegram при реальном добавлении
+    if (telegramId && imageUrl) {
+      const caption = `🆕 Новый товар добавлен:\n\n📦 Название: *${name}*\n💰 Цена: *${price}₽*\n🗂 Категория: *${category}*\n🧩 Тип: *${type === 'auto' ? 'Автомат' : 'Вручную'}*`;
+      await sendProductPreview(telegramId, imageUrl, caption);
+    }
+
+    // Only delete imagePath after S3 upload and preview logic
+    if (localImagePath && fs.existsSync(localImagePath)) {
+      fs.unlinkSync(localImagePath);
     }
 
     res.json({ success: true });

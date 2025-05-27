@@ -1,6 +1,7 @@
 const { Markup } = require('telegraf');
 const userSelections = require('../utils/userSelections');
-const db = require('../db/connect');
+const axios = require('axios');
+require('dotenv').config();
 
 module.exports = async (ctx) => {
   const userId = ctx.from.id;
@@ -10,11 +11,17 @@ module.exports = async (ctx) => {
   if (ctx.startPayload && ctx.startPayload.startsWith('ref_')) {
     const referredBy = ctx.startPayload.replace('ref_', '');
     if (referredBy && referredBy !== String(userId)) {
-      // Check if referral already exists
-      const exists = await db.query('SELECT 1 FROM referrals WHERE user_id = $1', [userId]);
-      if (exists.rowCount === 0) {
-        await db.query('INSERT INTO referrals (user_id, referred_by, level) VALUES ($1, $2, 1)', [userId, referredBy]);
+      const API_URL = process.env.API_URL || 'http://localhost:3001';
+      const API_TOKEN = process.env.ADMIN_API_TOKEN;
+      try {
+        await axios.post(
+          `${API_URL}/admin/referrals`,
+          { user_id: userId, referred_by: referredBy, level: 1 },
+          { headers: { Authorization: `Bearer ${API_TOKEN}` } }
+        );
         // Optionally notify the referrer here
+      } catch (err) {
+        console.error('❌ Ошибка при регистрации реферала:', err.message);
       }
     }
   }

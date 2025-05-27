@@ -1,23 +1,30 @@
 // handlers/xcostumes.js
 
 const { Markup } = require('telegraf');
-const db = require('../db/connect');
 const axios = require('axios');
 const userSelections = require('../utils/userSelections');
 const getLang = require('../utils/getLang');
 
+const API_URL = process.env.API_URL || 'http://localhost:3001';
+
 // 📌 Step 1: Show all costumes
 module.exports = async (ctx) => {
   const lang = await getLang(ctx);
-  const res = await db.query(
-    "SELECT * FROM products WHERE category = 'costumes' AND status = 'active' AND stock > 0 ORDER BY price ASC"
-  );
-
-  if (res.rows.length === 0) {
+  let costumes = [];
+  try {
+    const res = await axios.get(`${API_URL}/products?category=costumes&status=active`);
+    costumes = res.data.filter(c => c.stock > 0)
+      .sort((a, b) => a.price - b.price);
+  } catch (err) {
+    console.error('❌ Failed to load costumes from API:', err.message);
     return ctx.reply("❌ Костюмы сейчас недоступны.");
   }
 
-  const buttons = res.rows.map(c =>
+  if (!costumes.length) {
+    return ctx.reply("❌ Костюмы сейчас недоступны.");
+  }
+
+  const buttons = costumes.map(c =>
     [Markup.button.callback(`🎭 ${c.name} — ${c.price} ${lang.currency}`, `show_costume_${c.id}`)]
   );
 
@@ -31,14 +38,19 @@ module.exports.callbackQuery = async (ctx) => {
 
   if (selected.startsWith('show_costume_')) {
     const productId = selected.split('_')[2];
-    const res = await db.query('SELECT * FROM products WHERE id = $1', [productId]);
-    const product = res.rows[0];
+    let product;
+    try {
+      const res = await axios.get(`${API_URL}/products/${productId}`);
+      product = res.data;
+    } catch (err) {
+      console.error('❌ Failed to load costume from API:', err.message);
+      return ctx.answerCbQuery("❌ Костюм не найден", { show_alert: true });
+    }
 
     if (!product || product.category !== 'costumes') {
       return ctx.answerCbQuery("❌ Костюм не найден", { show_alert: true });
     }
 
-    const API_URL = process.env.API_URL || 'http://localhost:3001';
     let imageUrl = product.image;
     if (!imageUrl.startsWith('http')) {
       imageUrl = `${API_URL}/uploads/${product.image}`;
@@ -71,8 +83,14 @@ module.exports.callbackQuery = async (ctx) => {
   // ✅ Add to cart
   if (selected.startsWith('costume_')) {
     const productId = selected.split('_')[1];
-    const res = await db.query('SELECT * FROM products WHERE id = $1', [productId]);
-    const product = res.rows[0];
+    let product;
+    try {
+      const res = await axios.get(`${API_URL}/products/${productId}`);
+      product = res.data;
+    } catch (err) {
+      console.error('❌ Failed to load costume from API:', err.message);
+      return ctx.answerCbQuery("❌ Костюм не найден", { show_alert: true });
+    }
 
     if (!product || product.category !== 'costumes') {
       return ctx.answerCbQuery("❌ Костюм не найден", { show_alert: true });

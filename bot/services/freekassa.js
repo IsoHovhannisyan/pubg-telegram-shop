@@ -1,9 +1,11 @@
-const db = require('../../bot/db/connect');
+const axios = require('axios');
 const bot = require('../../bot/bot').bot;
 const crypto = require('crypto');
 const { redeemCode } = require('./synet');
 
-const FREESIGN_SECRET = process.env.FREEKASSA_SECRET; // թող այդտեղ լինի ֆայլում
+const FREESIGN_SECRET = process.env.FREEKASSA_SECRET;
+const API_URL = process.env.API_URL || 'http://localhost:3001';
+const API_TOKEN = process.env.ADMIN_API_TOKEN;
 
 const handleFreekassaCallback = async (req, res) => {
   const {
@@ -13,7 +15,6 @@ const handleFreekassaCallback = async (req, res) => {
     SIGN
   } = req.query;
 
-  // ✅ Ստեղծում ենք այնպիսի ստուգման hash, ինչպիսին docs-ում նշված է
   const hashString = `${MERCHANT_ID}:${AMOUNT}:${FREESIGN_SECRET}:${MERCHANT_ORDER_ID}`;
   const expectedSign = crypto.createHash('md5').update(hashString).digest('hex');
 
@@ -23,8 +24,11 @@ const handleFreekassaCallback = async (req, res) => {
   }
 
   try {
-    const result = await db.query('SELECT * FROM orders WHERE id = $1', [MERCHANT_ORDER_ID]);
-    const order = result.rows[0];
+    // Fetch order from API
+    const orderRes = await axios.get(`${API_URL}/admin/orders/${MERCHANT_ORDER_ID}`, {
+      headers: { Authorization: `Bearer ${API_TOKEN}` }
+    });
+    const order = orderRes.data;
 
     if (!order) {
       console.warn(`❌ Order ${MERCHANT_ORDER_ID} not found`);
@@ -44,8 +48,11 @@ const handleFreekassaCallback = async (req, res) => {
       return res.status(500).send('Order data error');
     }
 
-    // Update order status to pending
-    await db.query('UPDATE orders SET status = $1 WHERE id = $2', ['pending', MERCHANT_ORDER_ID]);
+    // Update order status to pending via API
+    await axios.patch(`${API_URL}/admin/orders/${MERCHANT_ORDER_ID}`,
+      { status: 'pending' },
+      { headers: { Authorization: `Bearer ${API_TOKEN}` } }
+    );
 
     // Process each product
     const results = [];
@@ -54,7 +61,6 @@ const handleFreekassaCallback = async (req, res) => {
         try {
           // Redeem code through SyNet API
           const redemption = await redeemCode(order.pubg_id, product.codeType || 'UC');
-          
           if (redemption.success) {
             results.push({
               product: product.name,
@@ -91,23 +97,15 @@ const handleFreekassaCallback = async (req, res) => {
       .map(r => `${r.status === 'success' ? '✅' : '❌'} ${r.product}: ${r.status === 'success' ? 'Активирован' : r.error}`)
       .join('\n');
 
-    await bot.telegram.sendMessage(userId, `
-🧾 Заказ подтверждён:
+    await bot.telegram.sendMessage(userId, `\n🧾 Заказ подтверждён:\n\n🎮 PUBG ID: ${pubgId}\n${itemsText}\n\n💰 Сумма: ${AMOUNT} ₽\n✅ Оплата получена.\n\nРезультаты активации:\n${redemptionResults}`);
 
-🎮 PUBG ID: ${pubgId}
-${itemsText}
-
-💰 Сумма: ${AMOUNT} ₽
-✅ Оплата получена.
-
-Результаты активации:
-${redemptionResults}
-    `);
-
-    // Update order status based on results
+    // Update order status based on results via API
     const hasErrors = results.some(r => r.status === 'error');
     const newStatus = hasErrors ? 'error' : 'delivered';
-    await db.query('UPDATE orders SET status = $1 WHERE id = $2', [newStatus, MERCHANT_ORDER_ID]);
+    await axios.patch(`${API_URL}/admin/orders/${MERCHANT_ORDER_ID}`,
+      { status: newStatus },
+      { headers: { Authorization: `Bearer ${API_TOKEN}` } }
+    );
 
     return res.send('YES');
   } catch (err) {

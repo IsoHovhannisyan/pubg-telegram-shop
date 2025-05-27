@@ -1,21 +1,28 @@
 const { Markup } = require('telegraf');
-const db = require('../db/connect');
 const axios = require('axios');
 const userSelections = require('../utils/userSelections');
 const getLang = require('../utils/getLang');
 
+const API_URL = process.env.API_URL || 'http://localhost:3001';
+
 // 📌 Step 1: Show all cars as buttons only
 module.exports = async (ctx) => {
   const lang = await getLang(ctx);
-  const res = await db.query(
-    "SELECT * FROM products WHERE category = 'cars' AND status = 'active' AND stock > 0 ORDER BY price ASC"
-  );
-
-  if (res.rows.length === 0) {
+  let cars = [];
+  try {
+    const res = await axios.get(`${API_URL}/products?category=cars&status=active`);
+    cars = res.data.filter(car => car.stock > 0)
+      .sort((a, b) => a.price - b.price);
+  } catch (err) {
+    console.error('❌ Failed to load cars from API:', err.message);
     return ctx.reply("❌ Մեքենաներ այս պահին հասանելի չեն։");
   }
 
-  const buttons = res.rows.map(car =>
+  if (!cars.length) {
+    return ctx.reply("❌ Մեքենաներ այս պահին հասանելի չեն։");
+  }
+
+  const buttons = cars.map(car =>
     [Markup.button.callback(`🚗 ${car.name} — ${car.price} ${lang.currency}`, `show_car_${car.id}`)]
   );
 
@@ -29,22 +36,23 @@ module.exports.callbackQuery = async (ctx) => {
 
   if (selected.startsWith('show_car_')) {
     const productId = selected.split('_')[2];
-    const res = await db.query('SELECT * FROM products WHERE id = $1', [productId]);
-    const product = res.rows[0];
+    let product;
+    try {
+      const res = await axios.get(`${API_URL}/products/${productId}`);
+      product = res.data;
+    } catch (err) {
+      console.error('❌ Failed to load car from API:', err.message);
+      return ctx.answerCbQuery("❌ Машина не найдена", { show_alert: true });
+    }
 
     if (!product || product.category !== 'cars') {
       return ctx.answerCbQuery("❌ Машина не найдена", { show_alert: true });
     }
 
-    const API_URL = process.env.API_URL || 'http://localhost:3001';
     let imageUrl = product.image;
-
-    // Եթե product.image-ը չի սկսվում http-ով, նշանակում է filename է
     if (!imageUrl.startsWith('http')) {
       imageUrl = `${API_URL}/uploads/${product.image}`;
     }
-
-    console.log("📦 Final imageUrl:", imageUrl);
 
     const caption = `🚗 <b>${product.name}</b>\n💵 <b>${product.price} ${lang.currency}</b>`;
 
@@ -67,15 +75,20 @@ module.exports.callbackQuery = async (ctx) => {
       await ctx.replyWithHTML(caption);
     }
 
-
     return ctx.answerCbQuery();
   }
 
   // ✅ Add to cart logic (car_123)
   if (selected.startsWith('car_')) {
     const productId = selected.split('_')[1];
-    const res = await db.query('SELECT * FROM products WHERE id = $1', [productId]);
-    const product = res.rows[0];
+    let product;
+    try {
+      const res = await axios.get(`${API_URL}/products/${productId}`);
+      product = res.data;
+    } catch (err) {
+      console.error('❌ Failed to load car from API:', err.message);
+      return ctx.answerCbQuery("❌ Машина не найдена", { show_alert: true });
+    }
 
     if (!product || product.category !== 'cars') {
       return ctx.answerCbQuery("❌ Машина не найдена", { show_alert: true });
