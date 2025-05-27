@@ -28,6 +28,8 @@ const userRoutes = require('./routes/users');
 
 const broadcastRoutes = require('./routes/broadcast');
 
+const adminRoutes = require('./routes/admin');
+
 app.use('/admin', authRoutes);
 app.use("/admin", setupAdminRoute); // ✅ Login route
 app.use('/admin/products', productRoutes);   // Admin համար՝ POST, կարգավորում
@@ -43,6 +45,8 @@ app.use('/admin/stock', verifyToken, stockRoutes);
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 app.use('/users', userRoutes);
+
+app.use('/', adminRoutes);
 
 app.use(require('./routes/lang'));
 

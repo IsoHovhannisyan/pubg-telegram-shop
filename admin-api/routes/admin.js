@@ -1,3 +1,7 @@
+const express = require('express');
+const router = express.Router();
+const db = require('../../bot/db/connect');
+
 // New endpoint to get user language by telegram ID
 router.get('/users/:telegramId/language', async (req, res) => {
   const { telegramId } = req.params;
@@ -40,4 +44,6 @@ router.get('/products/:id', async (req, res) => {
     console.error('Error fetching product by ID:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-}); 
+});
+
+module.exports = router; 
