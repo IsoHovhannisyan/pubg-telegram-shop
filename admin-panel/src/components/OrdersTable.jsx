@@ -371,7 +371,7 @@ export default function OrdersTable() {
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
-                <tr>
+              <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     ID
                   </th>
@@ -393,8 +393,8 @@ export default function OrdersTable() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Действия
                   </th>
-                </tr>
-              </thead>
+              </tr>
+            </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {currentOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50">
@@ -421,17 +421,17 @@ export default function OrdersTable() {
                       {order.created_at ? new Date(order.created_at).toLocaleString() : order.createdAt ? new Date(order.createdAt).toLocaleString() : ""}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <button
+                    <button
                         className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                        onClick={() => openOrder(order)}
-                      >
+                      onClick={() => openOrder(order)}
+                    >
                         Детали
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
           </div>
 
           {/* Pagination */}

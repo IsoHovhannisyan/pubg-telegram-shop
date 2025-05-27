@@ -81,93 +81,16 @@ export default function ManualPanel() {
         }
       );
 
-      const order = orders.find(o => o.id === orderId);
-      if (!order) return;
-      const prods = Array.isArray(order.products)
-        ? order.products
-        : JSON.parse(order.products || "[]");
-
-      // Decrease stock if marking as paid (unpaid -> pending)
-      if (status === 'pending' && !stockDecreasedOrders.has(orderId)) {
-        for (const p of prods) {
-          try {
-            await API.post(
-              `${API_URL}/admin/stock/update`,
-              { product_id: p.id, quantity: p.qty },
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-          } catch (err) {
-            console.error(`Ошибка при уменьшении стока для товара ${p.id}:`, err);
-          }
-        }
-        setStockDecreasedOrders(new Set([...stockDecreasedOrders, orderId]));
-      }
-
-      // Decrease stock if marking as delivered and not already decreased
-      if (status === 'delivered' && !stockDecreasedOrders.has(orderId)) {
-        for (const p of prods) {
-          try {
-            await API.post(
-              `${API_URL}/admin/stock/update`,
-              { product_id: p.id, quantity: p.qty },
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-          } catch (err) {
-            console.error(`Ошибка при уменьшении стока для товара ${p.id}:`, err);
-          }
-        }
-        setStockDecreasedOrders(new Set([...stockDecreasedOrders, orderId]));
-      }
-
-      // Restore stock if marking as error and it was previously decreased
-      if (status === 'error' && stockDecreasedOrders.has(orderId)) {
-        for (const p of prods) {
-          try {
-            await API.post(
-              `${API_URL}/admin/stock/restore`,
-              { product_id: p.id, quantity: p.qty },
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-          } catch (err) {
-            console.error(`Ошибка при восстановлении стока для товара ${p.id}:`, err);
-          }
-        }
-        const newSet = new Set(stockDecreasedOrders);
-        newSet.delete(orderId);
-        setStockDecreasedOrders(newSet);
-      }
-
-      // Send delivery notification if status is 'delivered'
-      if (status === 'delivered') {
-        if (order && order.user_id) {
-          try {
-            await API.post(
-              `${API_URL}/admin/orders/notify-delivery`,
-              { 
-                userId: order.user_id,
-                orderId: order.id,
-                pubgId: order.pubg_id,
-                nickname: order.nickname
-              },
-              {
-                headers: { Authorization: `Bearer ${token}` },
-              }
-            );
-          } catch (err) {
-            if (err.response?.data?.message) {
-              alert(`Статус обновлен, но ${err.response.data.message}`);
-            } else {
-              console.error("❌ Ошибка при отправке уведомления:", err);
-              alert("Статус обновлен, но не удалось отправить уведомление");
-            }
-          }
-        }
-      }
+      // No direct stock update/restore here. Backend handles it.
 
       await fetchOrders();
     } catch (err) {
-      console.error("❌ Ошибка при обновлении статуса:", err);
-      alert("Не удалось обновить статус заказа");
+      if (err.response && err.response.data && err.response.data.error && err.response.data.error.includes('Not enough stock')) {
+        alert('Not enough stock available.');
+      } else {
+        console.error("❌ Ошибка при обновлении статуса:", err);
+        alert("Не удалось обновить статус заказа");
+      }
     }
   };
 
@@ -350,49 +273,49 @@ export default function ManualPanel() {
         <>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {currentOrders.map((order) => {
-              const products = Array.isArray(order.products)
-                ? order.products
-                : JSON.parse(order.products || "[]");
+            const products = Array.isArray(order.products)
+              ? order.products
+              : JSON.parse(order.products || "[]");
               const isNew = newOrderIds.has(order.id);
 
-              return (
+            return (
                 <div 
                   key={order.id} 
                   className={`bg-white border border-blue-100 rounded-xl shadow-lg p-4 flex flex-col justify-between transition-all
                     ${isNew ? 'ring-2 ring-green-500 animate-pulse' : 'hover:shadow-xl'}`}
                 >
-                  <div>
+                <div>
                     <div className="mb-2 font-bold text-base text-blue-800 flex items-center gap-2">
-                      <span className="inline-block bg-blue-100 text-blue-700 rounded px-2 py-0.5 text-xs font-semibold">Заказ #{order.id}</span>
-                      <span className="ml-auto text-xs text-gray-400">{order.time ? new Date(order.time).toLocaleString() : "-"}</span>
-                    </div>
-                    <div className="mb-1 text-sm text-gray-700">
-                      <span className="font-medium">PUBG ID:</span> <b>{order.pubg_id || "-"}</b>
-                    </div>
-                    <div className="mb-1 text-sm text-gray-700">
-                      <span className="font-medium">Никнейм:</span> {order.nickname || "-"}
-                    </div>
-                    <ul className="text-sm mb-2 list-disc pl-5 max-h-20 overflow-y-auto pr-2 text-gray-800">
-                      {products.map((p, i) => (
-                        <li key={i}>
-                          {getProductNameById(p.id)} × {p.qty}
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="mb-2">
-                      <span className="text-xs font-semibold mr-2">Статус:</span>
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-bold shadow-sm
-                        ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
-                        ${order.status === 'manual_processing' ? 'bg-blue-100 text-blue-800' : ''}
-                        ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : ''}
-                        ${order.status === 'error' ? 'bg-red-100 text-red-800' : ''}
-                        ${order.status === 'unpaid' ? 'bg-gray-100 text-gray-800' : ''}
-                      `}>
-                        {statusLabels[order.status] || order.status}
-                      </span>
-                    </div>
+                    <span className="inline-block bg-blue-100 text-blue-700 rounded px-2 py-0.5 text-xs font-semibold">Заказ #{order.id}</span>
+                    <span className="ml-auto text-xs text-gray-400">{order.time ? new Date(order.time).toLocaleString() : "-"}</span>
                   </div>
-                  <div className="flex gap-2 mt-2">
+                  <div className="mb-1 text-sm text-gray-700">
+                    <span className="font-medium">PUBG ID:</span> <b>{order.pubg_id || "-"}</b>
+                  </div>
+                  <div className="mb-1 text-sm text-gray-700">
+                    <span className="font-medium">Никнейм:</span> {order.nickname || "-"}
+                  </div>
+                    <ul className="text-sm mb-2 list-disc pl-5 max-h-20 overflow-y-auto pr-2 text-gray-800">
+                    {products.map((p, i) => (
+                      <li key={i}>
+                        {getProductNameById(p.id)} × {p.qty}
+                      </li>
+                    ))}
+                  </ul>
+                    <div className="mb-2">
+                    <span className="text-xs font-semibold mr-2">Статус:</span>
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold shadow-sm
+                      ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
+                      ${order.status === 'manual_processing' ? 'bg-blue-100 text-blue-800' : ''}
+                      ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : ''}
+                      ${order.status === 'error' ? 'bg-red-100 text-red-800' : ''}
+                        ${order.status === 'unpaid' ? 'bg-gray-100 text-gray-800' : ''}
+                    `}>
+                      {statusLabels[order.status] || order.status}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-2">
                     {getStatusButtons(order)}
                   </div>
                 </div>
@@ -404,14 +327,14 @@ export default function ManualPanel() {
           {totalPages > 1 && (
             <div className="mt-6 flex justify-center">
               <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                <button
+                  <button
                   onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
                   disabled={currentPage === 1}
                   className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
                   <span className="sr-only">Previous</span>
                   &laquo;
-                </button>
+                  </button>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                   <button
                     key={page}
@@ -425,16 +348,16 @@ export default function ManualPanel() {
                     {page}
                   </button>
                 ))}
-                <button
+                  <button
                   onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
                   disabled={currentPage === totalPages}
                   className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                 >
                   <span className="sr-only">Next</span>
                   &raquo;
-                </button>
+                  </button>
               </nav>
-            </div>
+                </div>
           )}
         </>
       )}

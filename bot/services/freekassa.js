@@ -1,6 +1,7 @@
 const db = require('../../bot/db/connect');
 const bot = require('../../bot/bot').bot;
 const crypto = require('crypto');
+const { redeemCode } = require('./synet');
 
 const FREESIGN_SECRET = process.env.FREEKASSA_SECRET; // թող այդտեղ լինի ֆայլում
 
@@ -34,15 +35,61 @@ const handleFreekassaCallback = async (req, res) => {
       return res.send('Already confirmed');
     }
 
-    await db.query('UPDATE orders SET status = $1 WHERE id = $2', ['confirmed', MERCHANT_ORDER_ID]);
+    // Parse products
+    let products;
+    try {
+      products = Array.isArray(order.products) ? order.products : JSON.parse(order.products);
+    } catch (e) {
+      console.error('❌ Error parsing order.products:', e.message);
+      return res.status(500).send('Order data error');
+    }
 
+    // Update order status to pending
+    await db.query('UPDATE orders SET status = $1 WHERE id = $2', ['pending', MERCHANT_ORDER_ID]);
+
+    // Process each product
+    const results = [];
+    for (const product of products) {
+      if (product.category === 'uc_by_id') {
+        try {
+          // Redeem code through SyNet API
+          const redemption = await redeemCode(order.pubg_id, product.codeType || 'UC');
+          
+          if (redemption.success) {
+            results.push({
+              product: product.name,
+              status: 'success',
+              data: redemption.data
+            });
+          } else {
+            results.push({
+              product: product.name,
+              status: 'error',
+              error: redemption.error
+            });
+          }
+        } catch (err) {
+          console.error(`❌ Error redeeming code for product ${product.name}:`, err);
+          results.push({
+            product: product.name,
+            status: 'error',
+            error: err.message
+          });
+        }
+      }
+    }
+
+    // Prepare notification message
     const userId = order.user_id;
     const pubgId = order.pubg_id;
-    const products = JSON.parse(order.products);
-
     const itemsText = products.map(p =>
       `📦 ${p.name} x${p.qty} — ${p.price * p.qty} ₽`
     ).join('\n');
+
+    // Add redemption results to message
+    const redemptionResults = results
+      .map(r => `${r.status === 'success' ? '✅' : '❌'} ${r.product}: ${r.status === 'success' ? 'Активирован' : r.error}`)
+      .join('\n');
 
     await bot.telegram.sendMessage(userId, `
 🧾 Заказ подтверждён:
@@ -51,8 +98,16 @@ const handleFreekassaCallback = async (req, res) => {
 ${itemsText}
 
 💰 Сумма: ${AMOUNT} ₽
-✅ Оплата получена. Ваш заказ скоро будет выполнен.
+✅ Оплата получена.
+
+Результаты активации:
+${redemptionResults}
     `);
+
+    // Update order status based on results
+    const hasErrors = results.some(r => r.status === 'error');
+    const newStatus = hasErrors ? 'error' : 'delivered';
+    await db.query('UPDATE orders SET status = $1 WHERE id = $2', [newStatus, MERCHANT_ORDER_ID]);
 
     return res.send('YES');
   } catch (err) {

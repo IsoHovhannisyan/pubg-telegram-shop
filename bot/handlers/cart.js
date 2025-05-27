@@ -238,49 +238,51 @@ async function callbackQuery(ctx) {
   }
 
   if (data.startsWith('inc_') || data.startsWith('dec_') || data.startsWith('del_')) {
-    const id = parseInt(data.slice(4));
+  const id = parseInt(data.slice(4));
 
-    const allItems = [
-      ...(userData.uc || []),
-      ...(userData.popularity || []),
-      ...(userData.cars || []),
-      ...(userData.costumes || [])
-    ];
+  const allItems = [
+    ...(userData.uc || []),
+    ...(userData.popularity || []),
+    ...(userData.cars || []),
+    ...(userData.costumes || [])
+  ];
 
-    const itemIndex = allItems.findIndex(p => p.id === id);
-    if (itemIndex !== -1) {
-      const item = allItems[itemIndex];
+  const itemIndex = allItems.findIndex(p => p.id === id);
+  if (itemIndex !== -1) {
+    const item = allItems[itemIndex];
 
-      if (data.startsWith('inc_')) {
+    if (data.startsWith('inc_')) {
         // Check stock before increasing
         try {
-          const res = await axios.get(`${process.env.API_URL || 'http://localhost:3001'}/admin/products/${id}`);
-          const stock = res.data?.stock ?? 0;
+          const res = await axios.get(`${process.env.API_URL || 'http://localhost:3001'}/products`);
+          const product = res.data.find(p => p.id === id);
+          const stock = product?.stock ?? 0;
           if (item.qty + 1 > stock) {
             return ctx.answerCbQuery(`❌ Недостаточно товара на складе. Осталось: ${stock} шт.`, { show_alert: true });
           }
           item.qty += 1;
         } catch (err) {
+          console.error('❌ Stock check error:', err.message);
           return ctx.answerCbQuery('❌ Ошибка при проверке наличия товара', { show_alert: true });
         }
-      } else if (data.startsWith('dec_')) {
-        item.qty -= 1;
-        if (item.qty <= 0) allItems.splice(itemIndex, 1);
-      } else if (data.startsWith('del_')) {
-        allItems.splice(itemIndex, 1);
-      }
-
-      // Վերաբաշխում ըստ տեսակի
-      userData.uc = allItems.filter(p => p.type === 'auto');
-      userData.popularity = allItems.filter(p => p.type === 'manual');
-      userData.cars = allItems.filter(p => p.type === 'car');
-      userData.costumes = allItems.filter(p => p.type === 'costume');
-
-      userSelections.set(userId, userData);
+    } else if (data.startsWith('dec_')) {
+      item.qty -= 1;
+      if (item.qty <= 0) allItems.splice(itemIndex, 1);
+    } else if (data.startsWith('del_')) {
+      allItems.splice(itemIndex, 1);
     }
 
-    return showCart(ctx);
+    // Վերաբաշխում ըստ տեսակի
+    userData.uc = allItems.filter(p => p.type === 'auto');
+    userData.popularity = allItems.filter(p => p.type === 'manual');
+    userData.cars = allItems.filter(p => p.type === 'car');
+    userData.costumes = allItems.filter(p => p.type === 'costume');
+
+    userSelections.set(userId, userData);
   }
+
+  return showCart(ctx);
+}
 
   if (data === 'open_uc_catalog') {
     await ctx.answerCbQuery();

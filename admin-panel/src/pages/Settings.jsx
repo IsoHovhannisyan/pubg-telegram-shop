@@ -60,12 +60,12 @@ export default function Settings() {
   return (
     <div className="min-h-screen p-6 bg-gradient-to-br from-blue-50 via-white to-pink-50">
       <h2 className="text-4xl font-extrabold mb-8 text-center text-blue-900 drop-shadow">⚙️ Настройки магазина</h2>
-      
+
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl p-6">
-        <div className="space-y-6">
+      <div className="space-y-6">
           {/* Shop Status */}
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-            <div>
+          <div>
               <h3 className="text-lg font-semibold text-gray-800">Статус магазина</h3>
               <p className="text-sm text-gray-600">Включить или выключить весь магазин</p>
             </div>
@@ -79,7 +79,7 @@ export default function Settings() {
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
-          </div>
+        </div>
 
           {/* Custom Closed Message */}
           {!settings.shop_open && (
@@ -104,7 +104,7 @@ export default function Settings() {
 
           {/* Orders Status */}
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-            <div>
+              <div>
               <h3 className="text-lg font-semibold text-gray-800">Прием заказов</h3>
               <p className="text-sm text-gray-600">Разрешить или запретить оформление заказов</p>
             </div>
@@ -117,41 +117,41 @@ export default function Settings() {
                 disabled={saving}
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
+                </label>
+              </div>
 
           {/* Messages */}
           <div className="space-y-4">
-            <div>
+              <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Сообщение при отключенных заказах
-              </label>
-              <textarea
+                </label>
+                <textarea
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 rows="2"
                 value={settings.orders_disabled_message}
                 onChange={(e) => setSettings({ ...settings, orders_disabled_message: e.target.value })}
                 disabled={saving}
                 placeholder="Введите сообщение, которое увидят пользователи при отключенных заказах"
-              />
+                />
+              </div>
             </div>
-          </div>
 
           {/* Save Button */}
-          <button
+        <button
             onClick={() => updateSettings(settings)}
-            disabled={saving}
+          disabled={saving}
             className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition
               ${saving 
                 ? 'bg-gray-400 cursor-not-allowed' 
                 : 'bg-blue-600 hover:bg-blue-700'
               }`}
-          >
+        >
             {saving ? 'Сохранение...' : 'Сохранить настройки'}
-          </button>
+        </button>
         </div>
       </div>
-    </div>
-  );
+  </div>
+);
 }
 

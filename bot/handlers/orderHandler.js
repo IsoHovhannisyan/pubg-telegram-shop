@@ -118,8 +118,10 @@ async function registerOrder(ctx, pubgId, items, nickname) {
 
   try {
     // Register orders through admin panel API
+    let autoOrder = null;
+    let manualOrder = null;
     if (manualItems.length > 0) {
-      await api.post('/admin/orders', {
+      const res = await api.post('/admin/orders', {
         user_id: userId,
         pubg_id: pubgId,
         products: manualItems,
@@ -127,11 +129,12 @@ async function registerOrder(ctx, pubgId, items, nickname) {
         status: 'unpaid',
         nickname: nickname
       });
+      manualOrder = res.data;
       console.log('✅ Manual order registered as unpaid');
     }
 
     if (autoItems.length > 0) {
-      await api.post('/admin/orders', {
+      const res = await api.post('/admin/orders', {
         user_id: userId,
         pubg_id: pubgId,
         products: autoItems,
@@ -139,6 +142,7 @@ async function registerOrder(ctx, pubgId, items, nickname) {
         status: 'unpaid',
         nickname: nickname
       });
+      autoOrder = res.data;
       console.log('✅ Auto order registered as unpaid');
     }
 
@@ -156,11 +160,10 @@ async function registerOrder(ctx, pubgId, items, nickname) {
     finalMessage += `💵 <b>ОБЩАЯ СУММА:</b> <u>${fullSum} ₽</u>\n`;
     finalMessage += `━━━━━━━━━━━━━━━━━━━━\n`;
 
-    if (autoItems.length > 0) {
+    if (autoItems.length > 0 && autoOrder) {
       const ucSum = getTotal(autoItems);
       const ucList = autoItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
-      const paymentPurpose = `PUBG ${pubgId} (${nickname}) • ${autoItems.map(i => i.title).join(', ')}`;
-      const payUrl = generateFreekassaLink(ctx.from.id, ucSum, paymentPurpose);
+      const payUrl = generateFreekassaLink(autoOrder.id, ucSum);
 
       finalMessage += `💳 <b>Авто-доставка (UC):</b>\n${ucList}\n`;
       finalMessage += `💰 <b>Сумма:</b> ${ucSum} ₽\n`;
@@ -169,7 +172,7 @@ async function registerOrder(ctx, pubgId, items, nickname) {
       finalMessage += `━━━━━━━━━━━━━━━━━━━━\n`;
     }
 
-    if (manualItems.length > 0) {
+    if (manualItems.length > 0 && manualOrder) {
       const manualList = manualItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
       const manualSum = manualItems.reduce((sum, i) => sum + (i.price * i.qty), 0);
 
@@ -183,7 +186,7 @@ async function registerOrder(ctx, pubgId, items, nickname) {
     await ctx.replyWithHTML(finalMessage);
 
     // Notify managers if needed
-    if (manualItems.length > 0) {
+    if (manualItems.length > 0 && manualOrder) {
       const message = buildManagerMessage(ctx, pubgId, manualItems, nickname);
       for (const managerId of MANAGER_IDS) {
         try {

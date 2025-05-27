@@ -247,9 +247,9 @@ router.get('/stats/summary', verifyToken, async (req, res) => {
 
 // Create a new order (for bot and admin panel)
 router.post('/', verifyToken, async (req, res) => {
-  const { user_id, pubg_id, products, status, time, nickname } = req.body;
+  const { user_id, pubg_id, products, time, nickname } = req.body;
 
-  if (!user_id || !products || !status || !time) {
+  if (!user_id || !products || !time) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
@@ -262,7 +262,7 @@ router.post('/', verifyToken, async (req, res) => {
         user_id,
         pubg_id || null,
         JSON.stringify(products),
-        status,
+        'unpaid', // Always set to unpaid on creation
         time,
         nickname || null
       ]
