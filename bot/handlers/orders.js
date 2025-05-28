@@ -11,9 +11,8 @@ module.exports = async (ctx) => {
   const API_TOKEN = process.env.ADMIN_API_TOKEN;
 
   try {
-    const res = await axios.get(`${API_URL}/admin/orders`, {
-      headers: { Authorization: `Bearer ${API_TOKEN}` },
-      params: { user_id: userId, limit: 100, page: 1 }
+    const res = await axios.get(`${API_URL}/admin/orders/user/${userId}`, {
+      headers: { Authorization: `Bearer ${API_TOKEN}` }
     });
     const orders = res.data;
 
