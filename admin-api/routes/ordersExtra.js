@@ -1,5 +1,6 @@
 const express = require('express');
 const userOrdersRouter = express.Router();
+const db = require('../../bot/db/connect');
 
 userOrdersRouter.get('/user/:tgUserId', async (req, res) => {
   const { tgUserId } = req.params;
