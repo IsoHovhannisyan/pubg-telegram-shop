@@ -4,7 +4,7 @@ const userOrdersRouter = express.Router();
 userOrdersRouter.get('/user/:tgUserId', async (req, res) => {
   const { tgUserId } = req.params;
   try {
-    const result = await db.query('SELECT * FROM orders WHERE tg_user_id = $1 ORDER BY time DESC', [tgUserId]);
+    const result = await db.query('SELECT * FROM orders WHERE user_id = $1 ORDER BY time DESC', [tgUserId]);
     res.json(result.rows);
   } catch (err) {
     console.error('User orders error:', err.message);
