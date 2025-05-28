@@ -8,7 +8,10 @@ app.use(express.json());
 
 
 const cors = require('cors');
-app.use(cors({ origin: 'http://localhost:3000' }));
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://pubg-telegram-shop.vercel.app'],
+  credentials: true
+}));
 
 const authRoutes = require('./routes/adminAuth');
 const verifyToken = require('./routes/verifyToken'); 
