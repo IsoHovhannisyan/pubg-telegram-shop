@@ -3,17 +3,24 @@ const axios = require('axios');
 const API_URL = process.env.API_URL || 'http://localhost:3001';
 
 async function getLang(ctx) {
+  let warned = false;
   try {
     const res = await axios.get(`${API_URL}/users/${ctx.from.id}`);
     const langCode = res.data.language || 'ru';
     try {
       return require(`../../lang/${langCode}`);
     } catch (fileErr) {
-      console.error(`❌ Language file for '${langCode}' not found, falling back to Russian.`);
+      if (!warned && ctx && ctx.reply) {
+        warned = true;
+        await ctx.reply('⚠️ Произошла временная ошибка сервера, поэтому язык переключён на русский.\n\n⚠️ Temporary server error, language switched to Russian.');
+      }
       return require(`../../lang/ru`);
     }
   } catch (err) {
-    console.error("❌ getLang API error:", err.message);
+    if (!warned && ctx && ctx.reply) {
+      warned = true;
+      await ctx.reply('⚠️ Произошла временная ошибка сервера, поэтому язык переключён на русский.\n\n⚠️ Temporary server error, language switched to Russian.');
+    }
     return require(`../../lang/ru`);
   }
 }
