@@ -32,7 +32,7 @@ bot.use(checkShopStatus);
 
 // 📦 start-команда
 bot.start(async (ctx) => {
-  const lang = await getLang(ctx);
+  // const lang = await getLang(ctx); // Removed to prevent warning before language selection
   await require('./handlers/start')(ctx);
   // После выбора языка, показываем главное меню с кнопкой рефералов
   // (логика показа меню после выбора языка уже есть в lang callback, но дублируем для старта)
