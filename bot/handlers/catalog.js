@@ -16,7 +16,7 @@ const generateFreekassaLink = require('../utils/freekassaLink');
 async function getLang(ctx) {
   let langCode = 'ru'; // Default language
   try {
-    const response = await axios.get(`${process.env.API_URL}/admin/users/${ctx.from.id}/language`);
+    const response = await axios.get(`${process.env.API_URL}/users/${ctx.from.id}`);
     langCode = response.data.language || 'ru';
   } catch (error) {
     console.error('Error fetching user language:', error);
