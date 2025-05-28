@@ -11,8 +11,9 @@ module.exports = async (ctx) => {
   const API_TOKEN = process.env.ADMIN_API_TOKEN;
 
   try {
-    const res = await axios.get(`${API_URL}/admin/orders/user/${userId}`, {
-      headers: { Authorization: `Bearer ${API_TOKEN}` }
+    const res = await axios.get(`${API_URL}/admin/orders`, {
+      headers: { Authorization: `Bearer ${API_TOKEN}` },
+      params: { user_id: userId, limit: 100, page: 1 }
     });
     const orders = res.data;
 
@@ -25,12 +26,9 @@ module.exports = async (ctx) => {
       );
     }
 
-    // Limit to last 20 orders
-    const limitedOrders = orders.slice(0, 20);
-
     // Group orders with same timestamp and pubg_id
     const groupedOrders = [];
-    for (const row of limitedOrders) {
+    for (const row of orders) {
       const lastGroup = groupedOrders[groupedOrders.length - 1];
       const currentTime = new Date(row.time).getTime();
       const products = Array.isArray(row.products) ? row.products : JSON.parse(row.products);
