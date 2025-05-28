@@ -8,10 +8,6 @@ async function getLang(ctx) {
     const langCode = res.data.language || 'ru';
     return require(`../../lang/${langCode}`);
   } catch (err) {
-    if (!warned && ctx && ctx.reply) {
-      warned = true;
-      await ctx.reply('⚠️ Произошла временная ошибка сервера, поэтому язык переключён на русский.\n\n⚠️ Temporary server error, language switched to Russian.');
-    }
     return require(`../../lang/ru`);
   }
 }
