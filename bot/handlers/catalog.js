@@ -3,7 +3,7 @@
 // ===============================
 
 const { Markup } = require('telegraf');
-const axios = require('axios');
+const db = require('../db/connect');
 require('dotenv').config();
 
 const userSelections = require('../utils/userSelections');
@@ -14,13 +14,8 @@ const checkUCQuantities = require('../utils/checkUCQuantities');
 const generateFreekassaLink = require('../utils/freekassaLink');
 
 async function getLang(ctx) {
-  let langCode = 'ru'; // Default language
-  try {
-    const response = await axios.get(`${process.env.API_URL}/users/${ctx.from.id}`);
-    langCode = response.data.language || 'ru';
-  } catch (error) {
-    console.error('Error fetching user language:', error);
-  }
+  const res = await db.query('SELECT language FROM users WHERE telegram_id = $1', [ctx.from.id]);
+  const langCode = res.rows[0]?.language || 'ru';
   return require(`../../lang/${langCode}`);
 }
 function getUCType(id) {
@@ -43,15 +38,21 @@ function buildCatalogKeyboard(lang, filteredList) {
 
 const catalogCommand = async (ctx, type = 'auto') => {
   const lang = await getLang(ctx);
+
+  // Ըստ type որոշում ենք category անունը
   const category = type === 'manual' ? 'uc_by_login' : 'uc_by_id';
+
   try {
-    const response = await axios.get(`${process.env.API_URL}/products?category=${category}`);
-    const rows = response.data.filter(product => product.stock > 0)
-      .sort((a, b) => a.price - b.price);
+    const { rows } = await db.query(
+      'SELECT * FROM products WHERE category = $1 AND status = $2 ORDER BY price ASC',
+      [category, 'active']
+    );
+
     const filtered = rows.map(product => ({
-      name: product.name_ru || product.name,
+      name: product.name,
       value: `uc_${product.id}`,
     }));
+
     const buttons = buildCatalogKeyboard(lang, filtered);
     const title = type === 'manual' ? lang.catalog.select_uc_manual : lang.catalog.select_uc;
     await ctx.reply(title, Markup.inlineKeyboard(buttons));
@@ -76,11 +77,11 @@ const callbackQuery = async (ctx) => {
   const productId = parseInt(selected.replace('uc_', ''));
 
   try {
-    const response = await axios.get(`${process.env.API_URL}/products/${productId}`);
-    const product = response.data;
+    const { rows } = await db.query('SELECT * FROM products WHERE id = $1 AND status = $2', [productId, 'active']);
+    const product = rows[0];
 
     if (!product) {
-      return ctx.answerCbQuery("❌ UC пакет не найден", { show_alert: true });
+      return ctx.answerCbQuery(lang.errors.product_not_found || "❌ UC փաթեթը չի գտնվել", { show_alert: true });
     }
 
     // ✅ UC по входу ապրանքները չպետք է ավելանան զամբյուղ
@@ -110,7 +111,7 @@ const callbackQuery = async (ctx) => {
     } else {
       userData.uc.push({
         id: product.id,
-        title: product.name_ru || product.name,
+        title: product.name,
         price: product.price,
         type: product.type,
         qty: 1
@@ -121,7 +122,7 @@ const callbackQuery = async (ctx) => {
 
     await ctx.answerCbQuery();
     await ctx.reply(
-      `${product.name_ru || product.name} ✅ ${lang.catalog.added}\n🗃 В наличии: ${product.stock} шт.`,
+      `${product.name} ✅ ${lang.catalog.added}\n🗃 В наличии: ${product.stock} шт.`,
       Markup.inlineKeyboard([
         [Markup.button.callback(lang.buttons.to_cart, "go_to_cart")]
       ])
