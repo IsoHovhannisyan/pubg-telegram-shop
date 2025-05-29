@@ -12,7 +12,9 @@ const RECONNECT_DELAY = 5000; // 5 seconds
 const createPool = () => {
   return new Pool({
     connectionString: process.env.DB_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    ssl: {
+      rejectUnauthorized: false // Required for Supabase connections
+    },
     connectionTimeoutMillis: 30000,
     idleTimeoutMillis: 300000,
     max: 20,
