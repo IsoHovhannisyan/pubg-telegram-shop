@@ -224,14 +224,66 @@ router.patch('/:id', verifyToken, async (req, res) => {
     const itemsText = products.map(p => 
       `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
     ).join('\n');
-    const managerMessage = `🔔 <b>Статус заказа обновлён</b>\n\n` +
-      `ID заказа: <b>${order.id}</b>\n` +
-      `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
-      `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
-      `${userInfo ? `🆔 Telegram: <b>${order.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
-      `${itemsText}\n\n` +
-      `💰 Сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n` +
-      `📦 Новый статус: <b>${status}</b>`;
+
+    // Get unique categories and their labels
+    const categories = [...new Set(products.map(p => p.category))];
+    const categoryLabels = {
+      'POPULARITY_ID': '🎯 Popular by ID',
+      'POPULARITY_HOME': '🏠 Popular by Home',
+      'CARS': '🚗 Cars',
+      'COSTUMES': '👕 X-Costumes',
+      'uc_by_id': '💎 UC by ID'
+    };
+    
+    // Group products by category
+    const productsByCategory = categories.map(category => {
+      const categoryProducts = products.filter(p => p.category === category);
+      const categoryTotal = categoryProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
+      return {
+        label: categoryLabels[category] || category,
+        products: categoryProducts,
+        total: categoryTotal
+      };
+    });
+
+    // Build category section
+    const categorySection = productsByCategory.map(cat => 
+      `\n📦 <b>${cat.label}</b>\n` +
+      cat.products.map(p => `  • ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n') +
+      `\n  💰 Подкатегория: ${cat.total} ₽`
+    ).join('\n');
+
+    // Build manager message based on status change
+    let managerMessage = '';
+    if (status === 'pending' && prevStatus === 'unpaid') {
+      managerMessage = `💰 <b>Новая оплата получена!</b>\n\n` +
+        `ID заказа: <b>${order.id}</b>\n` +
+        `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
+        `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
+        `${userInfo ? `🆔 Telegram: <b>${order.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
+        `${categorySection}\n\n` +
+        `💰 Общая сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n` +
+        `⚠️ Требуется активация!`;
+    } else if (status === 'error') {
+      managerMessage = `❌ <b>Ошибка активации заказа!</b>\n\n` +
+        `ID заказа: <b>${order.id}</b>\n` +
+        `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
+        `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
+        `${userInfo ? `🆔 Telegram: <b>${order.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
+        `${categorySection}\n\n` +
+        `💰 Общая сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n` +
+        `⚠️ Требуется ручная проверка!`;
+    } else {
+      managerMessage = `🔔 <b>Статус заказа обновлён</b>\n\n` +
+        `ID заказа: <b>${order.id}</b>\n` +
+        `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
+        `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
+        `${userInfo ? `🆔 Telegram: <b>${order.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
+        `${categorySection}\n\n` +
+        `💰 Общая сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n` +
+        `📦 Новый статус: <b>${status}</b>`;
+    }
+
     for (const managerId of managerIds) {
       try {
         await bot.telegram.sendMessage(managerId, managerMessage, { parse_mode: 'HTML' });
@@ -247,16 +299,27 @@ router.patch('/:id', verifyToken, async (req, res) => {
         userMessage = `✅ <b>Ваш заказ доставлен!</b>\n\n` +
           `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
           `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
-          `${products.map(p => `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n')}\n\n` +
-          `💰 Сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n\n` +
-          `Спасибо за покупку! 🎉`;
+          `${categorySection}\n\n` +
+          `💰 Общая сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n\n` +
+          `Спасибо за покупку! 🎉\n\n` +
+          `💬 Оставьте отзыв о нашем сервисе: @Isohovhannisyan`;
       } else if (status === 'error') {
         userMessage = `❌ <b>Произошла ошибка при обработке заказа</b>\n\n` +
           `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
           `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
-          `${products.map(p => `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n')}\n\n` +
-          `💰 Сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n\n` +
-          `Наши менеджеры уже работают над решением проблемы. Мы свяжемся с вами в ближайшее время.`;
+          `${categorySection}\n\n` +
+          `💰 Общая сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n\n` +
+          `Наши менеджеры уже работают над решением проблемы.\n` +
+          `Мы свяжемся с вами в ближайшее время.\n\n` +
+          `📞 Поддержка: @Isohovhannisyan`;
+      } else if (status === 'pending' && prevStatus === 'unpaid') {
+        userMessage = `💰 <b>Оплата получена!</b>\n\n` +
+          `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
+          `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
+          `${categorySection}\n\n` +
+          `💰 Общая сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n\n` +
+          `⏳ Ваш заказ принят в обработку.\n` +
+          `Мы активируем его в ближайшее время!`;
       }
 
       if (userMessage) {
