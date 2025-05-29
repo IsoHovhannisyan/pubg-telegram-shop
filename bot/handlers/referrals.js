@@ -1,32 +1,67 @@
 const axios = require('axios');
 const getLang = require('../utils/getLang');
 
+function format(str, vars) {
+  return str.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+}
+
 module.exports = async function referralsHandler(ctx) {
   const lang = await getLang(ctx);
   const userId = ctx.from.id;
-  // Получаем username бота из env или используем плейсхолдер
+  const referral = lang.referral;
   const botUsername = process.env.BOT_USERNAME || 'YourBot';
   const referralLink = `https://t.me/${botUsername}?start=ref_${userId}`;
   try {
-    // Получаем список приглашённых этим пользователем
     const res = await axios.get(`${process.env.API_URL}/admin/referrals/${userId}`, {
       headers: { Authorization: `Bearer ${process.env.ADMIN_API_TOKEN}` }
     });
     const referrals = res.data;
-    const count = referrals.length;
+    const level1 = referrals.filter(r => r.level === 1);
+    const level2 = referrals.filter(r => r.level === 2);
+    const stats = refs => ({
+      count: refs.length,
+      orders: refs.reduce((sum, r) => sum + Number(r.total_orders || 0), 0),
+      revenue: refs.reduce((sum, r) => sum + Number(r.total_revenue || 0), 0),
+      points: refs.reduce((sum, r) => sum + Number(r.commission || 0), 0),
+    });
+    const s1 = stats(level1);
+    const s2 = stats(level2);
+    const totalPoints = s1.points + s2.points;
 
-    let message = `👥 <b>Ваша реферальная система</b>\n\n`;
-    message += `🔗 <b>Ваша реферальная ссылка:</b> <code>${referralLink}</code>\n`;
-    message += `Отправьте эту ссылку друзьям, чтобы пригласить их и получать бонусы!\n`;
-    message += `👤 <b>Вы пригласили:</b> <b>${count}</b> чел.\n`;
+    let message = `${referral.header}\n\n`;
+    message += `${referral.link_label} <code>${referralLink}</code>\n`;
+    message += `${referral.instruction}\n\n`;
+    message += `${referral.level1_expl}\n`;
+    message += `${referral.level2_expl}\n`;
+    message += `\n<i>${referral.note}</i>\n`;
+    message += `\n${referral.invited_friends} <b>${s1.count}</b>\n`;
+    message += `${referral.friends_of_friends} <b>${s2.count}</b>\n`;
+    message += `\n${referral.paid_orders}\n`;
+    message += format(referral.paid_orders_level1, { orders: s1.orders, revenue: s1.revenue }) + "\n";
+    message += format(referral.paid_orders_level2, { orders: s2.orders, revenue: s2.revenue }) + "\n";
+    if (s2.orders === 0) {
+      message += `${referral.no_paid_orders_level2}\n`;
+    }
+    message += `\n${referral.points_earned}\n`;
+    message += format(referral.points_level1, { points: s1.points }) + "\n";
+    message += format(referral.points_level2, { points: s2.points }) + "\n";
+    message += `\n<b>${format(referral.total_points, { points: totalPoints })}</b>\n`;
+    message += `\n<b>${referral.conversion}</b>\n`;
 
-    if (count > 0) {
-      message += `\n<b>Список приглашённых:</b>\n`;
+    if (referrals.length > 0) {
+      message += `\n${referral.invited_list}\n`;
       referrals.forEach((r, i) => {
-        message += `${i + 1}. <b>ID:</b> <code>${r.user_id}</code> | <b>Уровень:</b> ${r.level} | <b>Дата:</b> ${r.created_at ? new Date(r.created_at).toLocaleDateString() : '-'}\n`;
+        message += format(referral.invited_row, {
+          n: i + 1,
+          id: r.user_id,
+          level: r.level,
+          orders: r.total_orders || 0,
+          points: r.commission || 0,
+          date: r.created_at ? new Date(r.created_at).toLocaleDateString() : '-'
+        }) + "\n";
       });
     } else {
-      message += `\nУ вас пока нет приглашённых пользователей.`;
+      message += `\n${referral.no_invited}`;
     }
 
     await ctx.replyWithHTML(message);

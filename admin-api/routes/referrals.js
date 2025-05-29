@@ -102,7 +102,7 @@ router.get("/referrals/:userId", verifyToken, async (req, res) => {
 
     // Calculate commission based on referral level
     const referrals = result.rows.map(ref => {
-      const commissionRate = ref.level === 1 ? 0.03 : 0.01; // 3% for level 1, 1% for level 2
+      const commissionRate = ref.level === 1 ? 0.05 : 0.01; // 5% for level 1, 1% for level 2
       const commission = Math.round(ref.total_revenue * commissionRate);
       return {
         ...ref,

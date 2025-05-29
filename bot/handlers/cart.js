@@ -5,14 +5,17 @@
 const { Markup } = require('telegraf');
 const userSelections = require('../utils/userSelections');
 const axios = require('axios');
+const https = require('https');
 const getAvailableProducts = require('../utils/getAvailableProducts');
 const getLang = require('../utils/getLang');
 const verifyPubgId = require('../utils/pubgVerification');
 const registerOrder = require('./orderHandler');
 require('dotenv').config();
 
-
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// Create a custom HTTPS agent with proper SSL configuration
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: process.env.NODE_ENV === 'production'
+});
 
 async function getPubgNickname(pubgId) {
   try {
@@ -24,7 +27,8 @@ async function getPubgNickname(pubgId) {
         'Content-Type': 'application/json',
         'Accept': '*/*'
       },
-      data: { playerId: pubgId.toString() }
+      data: { playerId: pubgId.toString() },
+      httpsAgent // Use the custom HTTPS agent
     });
 
     const data = response.data;
@@ -166,12 +170,16 @@ async function callbackQuery(ctx) {
     for (const item of allItems) {
       let stock = 0;
       try {
-        const res = await axios.get(`${process.env.API_URL || 'http://localhost:3001'}/admin/products/${item.id}`);
+        const res = await axios.get(`${process.env.API_URL || 'http://localhost:3001'}/admin/products/${item.id}`, {
+          httpsAgent
+        });
         stock = res.data?.stock ?? 0;
       } catch (err) {
         // fallback: try products endpoint
         try {
-          const res = await axios.get(`${process.env.API_URL || 'http://localhost:3001'}/products`);
+          const res = await axios.get(`${process.env.API_URL || 'http://localhost:3001'}/products`, {
+            httpsAgent
+          });
           const found = Array.isArray(res.data) ? res.data.find(p => p.id == item.id) : null;
           stock = found?.stock ?? 0;
         } catch (e) {

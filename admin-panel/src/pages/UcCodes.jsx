@@ -80,6 +80,22 @@ export default function UcCodes() {
               required
             />
           </div>
+          <div>
+            <label className="block mb-1 font-medium">Продукт</label>
+            <select
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            >
+              <option value="60uc">60uc</option>
+              <option value="325uc">325uc</option>
+              <option value="660uc">660uc</option>
+              <option value="1800uc">1800uc</option>
+              <option value="3850uc">3850uc</option>
+              <option value="8100uc">8100uc</option>
+            </select>
+          </div>
           <button
             type="submit"
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"

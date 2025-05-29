@@ -92,7 +92,7 @@ export default function Referrals() {
                     <span className="font-bold">{r.referred_by}</span>
                     <div className="text-right">
                       <div>{r.invited_count} приглашённых</div>
-                      <div className="text-green-600">{r.total_revenue?.toLocaleString()} ₽</div>
+                      <div className="text-green-600">{r.total_revenue?.toLocaleString()} баллов</div>
                     </div>
                   </li>
                 ))}
@@ -123,7 +123,7 @@ export default function Referrals() {
                       </td>
                       <td className="p-3">{ref.total_referrals || 0}</td>
                       <td className="p-3">{ref.total_orders || 0}</td>
-                      <td className="p-3">{ref.total_revenue?.toLocaleString() || 0} ₽</td>
+                      <td className="p-3">{ref.total_revenue?.toLocaleString() || 0} баллов</td>
                       <td className="p-3">{ref.referral_points || 0}</td>
                       <td className="p-3">
                         <button
@@ -211,10 +211,10 @@ export default function Referrals() {
                           </td>
                           <td className="py-2">{ref.level}</td>
                           <td className="py-2">{ref.total_orders || 0}</td>
-                          <td className="py-2">{ref.total_revenue?.toLocaleString() || 0} ₽</td>
+                          <td className="py-2">{ref.total_revenue?.toLocaleString() || 0} баллов</td>
                           <td className="py-2">
                             <div className="text-green-600">
-                              {ref.commission?.toLocaleString() || 0} ₽
+                              {ref.commission?.toLocaleString() || 0} баллов
                               <span className="text-gray-500 text-xs ml-1">
                                 ({ref.commission_rate}%)
                               </span>
@@ -228,6 +228,44 @@ export default function Referrals() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Level summary and explanation */}
+                {(() => {
+                  const level1 = userReferrals.filter(r => r.level === 1);
+                  const level2 = userReferrals.filter(r => r.level === 2);
+                  const stats = refs => ({
+                    count: refs.length,
+                    orders: refs.reduce((sum, r) => sum + Number(r.total_orders || 0), 0),
+                    revenue: refs.reduce((sum, r) => sum + Number(r.total_revenue || 0), 0),
+                    commission: refs.reduce((sum, r) => sum + Number(r.commission || 0), 0),
+                  });
+                  const s1 = stats(level1);
+                  const s2 = stats(level2);
+                  const total = {
+                    count: s1.count + s2.count,
+                    orders: s1.orders + s2.orders,
+                    revenue: s1.revenue + s2.revenue,
+                    commission: s1.commission + s2.commission
+                  };
+                  return (
+                    <div className="mb-4">
+                      <div className="font-semibold mb-1">Сводка по уровням:</div>
+                      <div className="text-sm mb-1">
+                        <div>5% с каждого заказа приглашённого друга (1 уровень)</div>
+                        <div>1% с каждого заказа друга вашего друга (2 уровень)</div>
+                        <div className="text-gray-500 italic">Баллы начисляются только за оплаченные заказы.</div>
+                      </div>
+                      <div className="text-sm">
+                        <div>1 уровень: {s1.count} чел, {s1.orders} заказов, {s1.revenue} баллов</div>
+                        <div>2 уровень: {s2.count} чел, {s2.orders} заказов, {s2.revenue} баллов</div>
+                        {s2.orders === 0 && (
+                          <div className="text-gray-500 italic">Пока нет оплаченных заказов от друзей ваших друзей. Как только они купят что-то, вы получите 1% от их покупок.</div>
+                        )}
+                        <div className="mt-1 font-bold">Всего: {total.count} чел, {total.orders} заказов, {total.revenue} баллов</div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
