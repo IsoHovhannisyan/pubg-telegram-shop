@@ -1,34 +1,41 @@
 import React, { useEffect, useState } from "react";
-import API from "../api";
+import API, { getReferralPoints } from "../api";
 
 export default function Referrals() {
   const [summary, setSummary] = useState(null);
   const [referrals, setReferrals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [userReferrals, setUserReferrals] = useState([]);
   const token = localStorage.getItem("admin-token");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
+  const fetchData = async () => {
+    try {
+      setError(null);
+      const [summaryRes, referralsRes] = await Promise.all([
+        API.get("/admin/referrals/summary", { headers: { Authorization: `Bearer ${token}` } }),
+        API.get("/admin/referrals", { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      setSummary(summaryRes.data);
+      setReferrals(referralsRes.data);
+    } catch (err) {
+      console.error("Ошибка при загрузке рефералов:", err);
+      setError("Не удалось загрузить данные. Пожалуйста, попробуйте позже.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [summaryRes, referralsRes] = await Promise.all([
-          API.get("/admin/referrals/summary", { headers: { Authorization: `Bearer ${token}` } }),
-          API.get("/admin/referrals", { headers: { Authorization: `Bearer ${token}` } })
-        ]);
-        setSummary(summaryRes.data);
-        setReferrals(referralsRes.data);
-      } catch (err) {
-        console.error("Ошибка при загрузке рефералов:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, [token]);
 
   const handleUserClick = async (userId) => {
     try {
+      setError(null);
       const response = await API.get(`/admin/referrals/${userId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -36,15 +43,40 @@ export default function Referrals() {
       setSelectedUser(userId);
     } catch (err) {
       console.error("Ошибка при загрузке рефералов пользователя:", err);
+      setError("Не удалось загрузить детали рефералов. Пожалуйста, попробуйте позже.");
     }
   };
+
+  const handleRetry = () => {
+    setLoading(true);
+    fetchData();
+  };
+
+  // Pagination logic for referrals table
+  const totalPages = Math.ceil(referrals.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const currentReferrals = referrals.slice(startIndex, endIndex);
 
   return (
     <div className="min-h-screen p-6 bg-gradient-to-br from-blue-50 via-white to-pink-50">
       <h2 className="text-4xl font-extrabold mb-8 text-center text-blue-900 drop-shadow">👥 Реферальная система</h2>
+      
+      {error && (
+        <div className="max-w-5xl mx-auto mb-8 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-600">{error}</p>
+          <button 
+            onClick={handleRetry}
+            className="mt-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
+          >
+            Попробовать снова
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-center text-lg text-blue-700 animate-pulse">Загрузка...</p>
-      ) : (
+      ) : !error && (
         <>
           {/* Summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
@@ -79,11 +111,12 @@ export default function Referrals() {
                     <th className="p-3 font-semibold">Приглашено</th>
                     <th className="p-3 font-semibold">Заказы</th>
                     <th className="p-3 font-semibold">Выручка</th>
+                    <th className="p-3 font-semibold">Реферальные баллы</th>
                     <th className="p-3 font-semibold">Действия</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {referrals.map((ref) => (
+                  {currentReferrals.map((ref) => (
                     <tr key={ref.referred_by} className="border-b hover:bg-blue-50">
                       <td className="p-3">
                         {ref.username || ref.first_name || ref.last_name || ref.referred_by}
@@ -91,6 +124,7 @@ export default function Referrals() {
                       <td className="p-3">{ref.total_referrals || 0}</td>
                       <td className="p-3">{ref.total_orders || 0}</td>
                       <td className="p-3">{ref.total_revenue?.toLocaleString() || 0} ₽</td>
+                      <td className="p-3">{ref.referral_points || 0}</td>
                       <td className="p-3">
                         <button
                           onClick={() => handleUserClick(ref.referred_by)}
@@ -104,6 +138,42 @@ export default function Referrals() {
                 </tbody>
               </table>
             </div>
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-6 flex justify-center">
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <span className="sr-only">Previous</span>
+                    &laquo;
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium
+                        ${currentPage === page
+                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <span className="sr-only">Next</span>
+                    &raquo;
+                  </button>
+                </nav>
+              </div>
+            )}
           </div>
 
           {/* User Referrals Modal */}
@@ -122,7 +192,7 @@ export default function Referrals() {
                   </button>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="min-w-full text-sm text-left">
                     <thead>
                       <tr className="text-left border-b">
                         <th className="py-2">Пользователь</th>

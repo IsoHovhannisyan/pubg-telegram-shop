@@ -80,7 +80,10 @@ module.exports = {
     error: "❌ An error occurred while retrieving your orders."
   },
   unknown_action: "⚠️ Unknown action",
-  invalid_pubg_id: "❌ Please enter a valid PUBG ID (5 to 20 digits only)"
+  invalid_pubg_id: "❌ Please enter a valid PUBG ID (5 to 20 digits only)",
+  referral: {
+    new_referral: "🎉 A new user has registered using your referral link! Thank you for inviting them!"
+  },
 };
 
   

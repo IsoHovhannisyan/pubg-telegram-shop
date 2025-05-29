@@ -32,6 +32,7 @@ export default function OrdersTable() {
   const [sortByNewest, setSortByNewest] = useState(true);
   const [showDelivered, setShowDelivered] = useState(false);
   const [stockDecreasedOrders, setStockDecreasedOrders] = useState(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchOrders();
@@ -268,11 +269,21 @@ export default function OrdersTable() {
     const isDelivered = order.status === 'delivered';
     const isManualOrder = needsManualProcessing(order);
     
+    // Search filter
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch = searchQuery === '' || 
+      String(order.id).includes(searchLower) ||
+      String(order.pubg_id).includes(searchLower) ||
+      String(order.user_id).includes(searchLower) ||
+      (order.nickname && order.nickname.toLowerCase().includes(searchLower)) ||
+      (order.telegram_username && order.telegram_username.toLowerCase().includes(searchLower)) ||
+      formatProductList(Array.isArray(order.products) ? order.products : JSON.parse(order.products || "[]")).toLowerCase().includes(searchLower);
+    
     if (showArchived) {
-      return isDelivered;
+      return isDelivered && matchesSearch;
     } else {
       // Show all non-delivered orders, including pending orders
-      return !isDelivered;
+      return !isDelivered && matchesSearch;
     }
   });
 
@@ -347,6 +358,16 @@ export default function OrdersTable() {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Таблица заказов</h2>
         <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Поиск по ID, PUBG ID, Telegram ID, никнейму или товарам..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1); // Reset to first page when searching
+            }}
+            className="px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
           <button
             onClick={() => setSortByNewest(!sortByNewest)}
             className={`px-3 py-1 rounded ${sortByNewest ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}

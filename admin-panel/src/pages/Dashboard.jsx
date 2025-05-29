@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import API from "../api";
 
 const STATUS_ICONS = {
@@ -23,6 +23,22 @@ const STAT_SUBTITLES = {
   "👥 Пользователей": "Зарегистрировано в системе"
 };
 
+const STATUS_COLORS = {
+  delivered: 'bg-green-100 text-green-800',
+  pending: 'bg-yellow-100 text-yellow-800',
+  manual_processing: 'bg-blue-100 text-blue-800',
+  error: 'bg-red-100 text-red-800',
+  unpaid: 'bg-gray-100 text-gray-800'
+};
+
+const getStatusColor = (status) => {
+  return STATUS_COLORS[status] || 'bg-gray-100 text-gray-800';
+};
+
+const calculateTotalPrice = (products) => {
+  return products.reduce((sum, p) => sum + ((p.price || p.amount || 0) * (p.qty || 1)), 0);
+};
+
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [orderStats, setOrderStats] = useState(null);
@@ -40,15 +56,23 @@ export default function Dashboard() {
   const [activeSection, setActiveSection] = useState('overview');
   const token = localStorage.getItem("admin-token");
   const [selectedOrderUser, setSelectedOrderUser] = useState(null);
+  const [usersCurrentPage, setUsersCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const USERS_PER_PAGE = 10;
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userOrders, setUserOrders] = useState([]);
+  const [userReferrals, setUserReferrals] = useState([]);
+  const [userStats, setUserStats] = useState(null);
+  const [loadingUserData, setLoadingUserData] = useState(false);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await API.get("/admin/users/admin/users", { headers: { Authorization: `Bearer ${token}` } });
       setUsers(response.data);
     } catch (err) {
       console.error("Ошибка при загрузке пользователей:", err);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -107,7 +131,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchUsers();
-  }, [token]);
+  }, [token, fetchUsers]);
 
   const handleDateRangeChange = (e) => {
     const { name, value } = e.target;
@@ -173,6 +197,57 @@ export default function Dashboard() {
     };
     return labels[status] || status;
   };
+
+  // Add search filter function
+  const filteredUsers = users.filter(user => {
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      String(user.telegram_id).includes(searchLower) ||
+      (user.username && user.username.toLowerCase().includes(searchLower)) ||
+      (user.first_name && user.first_name.toLowerCase().includes(searchLower)) ||
+      (user.last_name && user.last_name.toLowerCase().includes(searchLower))
+    );
+  });
+
+  // Update pagination to use filtered users
+  const usersTotalPages = Math.ceil(filteredUsers.length / USERS_PER_PAGE);
+  const usersStartIndex = (usersCurrentPage - 1) * USERS_PER_PAGE;
+  const usersEndIndex = usersStartIndex + USERS_PER_PAGE;
+  const currentUsers = filteredUsers.slice(usersStartIndex, usersEndIndex);
+
+  // Update fetchUserDetails to ensure correct orders fetching
+  const fetchUserDetails = async (userId) => {
+    setLoadingUserData(true);
+    try {
+      // Fetch all orders and filter by user_id
+      const allOrdersRes = await API.get(`/admin/orders`, { headers: { Authorization: `Bearer ${token}` } });
+      const userOrders = allOrdersRes.data.filter(o => String(o.user_id) === String(userId));
+      // Fetch referrals for this user
+      const referralsRes = await API.get(`/admin/referrals/${userId}`, { headers: { Authorization: `Bearer ${token}` } });
+      // Optionally, fetch referral points
+      // const referralPointsRes = await API.get(`/admin/referrals/points/${userId}`, { headers: { Authorization: `Bearer ${token}` } });
+      setUserOrders(userOrders);
+      setUserReferrals(referralsRes.data);
+      // setUserStats(referralPointsRes.data); // If you want to show referral points
+    } catch (err) {
+      console.error("Ошибка при загрузке данных пользователя:", err);
+    } finally {
+      setLoadingUserData(false);
+    }
+  };
+
+  // Add this function to handle user click
+  const handleUserClick = async (user) => {
+    setSelectedUser(user);
+    await fetchUserDetails(user.telegram_id);
+  };
+
+  // Calculate total purchases for the user, excluding unpaid orders
+  const totalPurchases = userOrders.reduce((sum, order) => {
+    if (order.status === 'unpaid') return sum;
+    const products = Array.isArray(order.products) ? order.products : JSON.parse(order.products || "[]");
+    return sum + products.reduce((s, p) => s + ((p.price || p.amount || 0) * (p.qty || 1)), 0);
+  }, 0);
 
   if (loading) return <p className="p-4">Загрузка...</p>;
   if (!stats || !orderStats)
@@ -308,30 +383,33 @@ export default function Dashboard() {
             <div className="mt-8">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">🏆 Топ категории</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {stats.salesByCategory.slice(0, 3).map((cat, i) => {
-                  const percent = ((cat.revenue / stats.totalRevenue) * 100).toFixed(1);
-                  return (
-                    <div
-                      key={i}
-                      className="bg-white rounded-lg p-4 border border-gray-100 hover:shadow-md transition-all duration-200"
-                    >
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium text-gray-800">{getCategoryLabel(cat.category)}</span>
-                        <span className="text-sm text-blue-600 font-medium">{percent}%</span>
+                {stats.salesByCategory
+                  .sort((a, b) => b.revenue - a.revenue) // Sort by revenue in descending order
+                  .slice(0, 3)
+                  .map((cat, i) => {
+                    const percent = ((cat.revenue / stats.totalRevenue) * 100).toFixed(1);
+                    return (
+                      <div
+                        key={i}
+                        className="bg-white rounded-lg p-4 border border-gray-100 hover:shadow-md transition-all duration-200"
+                      >
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-medium text-gray-800">{getCategoryLabel(cat.category)}</span>
+                          <span className="text-sm text-blue-600 font-medium">{percent}%</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-2">
+                          <div 
+                            className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                            style={{ width: `${percent}%` }}
+                          ></div>
+                        </div>
+                        <div className="mt-2 flex justify-between text-sm text-gray-600">
+                          <span>{cat.total} шт.</span>
+                          <span>{cat.revenue.toLocaleString()} ₽</span>
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div 
-                          className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
-                          style={{ width: `${percent}%` }}
-                        ></div>
-                      </div>
-                      <div className="mt-2 flex justify-between text-sm text-gray-600">
-                        <span>{cat.total} шт.</span>
-                        <span>{cat.revenue.toLocaleString()} ₽</span>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </div>
           </section>
@@ -540,6 +618,21 @@ export default function Dashboard() {
                 ✕
               </button>
             </div>
+            
+            {/* Add search input */}
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder="Поиск по ID, имени пользователя, имени или фамилии..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setUsersCurrentPage(1); // Reset to first page when searching
+                }}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -552,9 +645,20 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user) => (
-                    <tr key={user.telegram_id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">{user.telegram_id}</td>
+                  {currentUsers.map((user) => (
+                    <tr 
+                      key={user.telegram_id} 
+                      className="border-b hover:bg-gray-50 cursor-pointer group" 
+                      onClick={() => handleUserClick(user)}
+                    >
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <span>{user.telegram_id}</span>
+                          <span className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            👆 Нажмите для просмотра деталей
+                          </span>
+                        </div>
+                      </td>
                       <td className="py-3 px-4">{user.username || '-'}</td>
                       <td className="py-3 px-4">{user.first_name || '-'}</td>
                       <td className="py-3 px-4">{user.last_name || '-'}</td>
@@ -566,6 +670,182 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
+            {/* Pagination Controls */}
+            {usersTotalPages > 1 && (
+              <div className="mt-6 flex justify-center">
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={() => setUsersCurrentPage(page => Math.max(1, page - 1))}
+                    disabled={usersCurrentPage === 1}
+                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <span className="sr-only">Previous</span>
+                    &laquo;
+                  </button>
+                  {Array.from({ length: usersTotalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setUsersCurrentPage(page)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium
+                        ${usersCurrentPage === page
+                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setUsersCurrentPage(page => Math.min(usersTotalPages, page + 1))}
+                    disabled={usersCurrentPage === usersTotalPages}
+                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <span className="sr-only">Next</span>
+                    &raquo;
+                  </button>
+                </nav>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Add the user details modal */}
+      {selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-gray-800">
+                Информация о пользователе
+              </h3>
+              <button
+                onClick={() => {
+                  setSelectedUser(null);
+                  setUserOrders([]);
+                  setUserReferrals([]);
+                  setUserStats(null);
+                }}
+                className="text-gray-500 hover:text-gray-700 transition-colors duration-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            {loadingUserData ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Basic User Information */}
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <h4 className="text-lg font-semibold mb-2">Основная информация</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Telegram ID</p>
+                      <p className="font-medium">{selectedUser.telegram_id}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Username</p>
+                      <p className="font-medium">@{selectedUser.username || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Имя</p>
+                      <p className="font-medium">{selectedUser.first_name || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Фамилия</p>
+                      <p className="font-medium">{selectedUser.last_name || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Дата регистрации</p>
+                      <p className="font-medium">
+                        {selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleString() : '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Сумма всех покупок</p>
+                      <p className="font-bold text-blue-700 text-lg">{totalPurchases.toLocaleString()} ₽</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Приглашено пользователей</p>
+                      <p className="font-bold text-green-700 text-lg">{userReferrals.filter(Boolean).length}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* User Statistics */}
+                {userStats && (
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <h4 className="text-lg font-semibold mb-4">Статистика</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <p className="text-sm text-gray-600">Всего заказов</p>
+                        <p className="text-xl font-bold text-blue-600">{userStats.totalOrders}</p>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <p className="text-sm text-gray-600">Общая сумма</p>
+                        <p className="text-xl font-bold text-blue-600">{userStats.totalSpent?.toLocaleString()} ₽</p>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <p className="text-sm text-gray-600">Средний чек</p>
+                        <p className="text-xl font-bold text-blue-600">
+                          {userStats.averageOrderValue?.toLocaleString()} ₽
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* User Orders */}
+                <div className="bg-white rounded-lg border">
+                  <h4 className="text-lg font-semibold p-4 border-b">История заказов</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="px-4 py-2 text-left">ID</th>
+                          <th className="px-4 py-2 text-left">PUBG ID</th>
+                          <th className="px-4 py-2 text-left">Никнейм</th>
+                          <th className="px-4 py-2 text-left">Дата</th>
+                          <th className="px-4 py-2 text-left">Статус</th>
+                          <th className="px-4 py-2 text-left">Сумма</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {userOrders.map((order) => {
+                          const products = Array.isArray(order.products) ? order.products : JSON.parse(order.products || "[]");
+                          const amount = products.reduce((sum, p) => sum + ((p.price || p.amount || 0) * (p.qty || 1)), 0);
+                          return (
+                            <tr key={order.id} className="border-t hover:bg-gray-50">
+                              <td className="px-4 py-2">{order.id}</td>
+                              <td className="px-4 py-2">{order.pubg_id || '-'}</td>
+                              <td className="px-4 py-2">{order.nickname || '-'}</td>
+                              <td className="px-4 py-2">
+                                {
+                                  (() => {
+                                    const dateStr = order.time || order.created_at || order.createdAt;
+                                    const dateObj = dateStr ? new Date(dateStr) : null;
+                                    return dateObj && !isNaN(dateObj) ? dateObj.toLocaleString() : '-';
+                                  })()
+                                }
+                              </td>
+                              <td className="px-4 py-2">
+                                <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(order.status)}`}>
+                                  {getStatusLabel(order.status)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2">
+                                {amount.toLocaleString()} ₽
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

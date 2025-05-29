@@ -85,6 +85,12 @@ export const getReferrals = async () => {
   return response.data;
 };
 
+// Get referral points for a user
+export const getReferralPoints = async (userId) => {
+  const response = await axios.get(`${API_URL}/admin/referrals/points/${userId}`);
+  return response.data;
+};
+
 // Add axios interceptor for authentication
 axios.interceptors.request.use(
   (config) => {

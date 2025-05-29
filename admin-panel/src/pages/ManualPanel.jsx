@@ -281,12 +281,13 @@ export default function ManualPanel() {
             return (
                 <div 
                   key={order.id} 
-                  className={`bg-white border border-blue-100 rounded-xl shadow-lg p-4 flex flex-col justify-between transition-all
-                    ${isNew ? 'ring-2 ring-green-500 animate-pulse' : 'hover:shadow-xl'}`}
+                  className={`bg-white border border-gray-200 rounded-xl shadow-sm p-5 flex flex-col justify-between transition-all duration-200
+                    ${isNew ? 'bg-green-50 border-green-200' : 'hover:shadow-md'}
+                  `}
                 >
                 <div>
-                    <div className="mb-2 font-bold text-base text-blue-800 flex items-center gap-2">
-                    <span className="inline-block bg-blue-100 text-blue-700 rounded px-2 py-0.5 text-xs font-semibold">Заказ #{order.id}</span>
+                    <div className="mb-2 font-bold text-base text-blue-900 flex items-center gap-2">
+                    <span className="inline-block bg-blue-50 text-blue-700 rounded px-2 py-0.5 text-xs font-semibold border border-blue-100">Заказ #{order.id}</span>
                     <span className="ml-auto text-xs text-gray-400">{order.time ? new Date(order.time).toLocaleString() : "-"}</span>
                   </div>
                   <div className="mb-1 text-sm text-gray-700">
@@ -302,21 +303,23 @@ export default function ManualPanel() {
                       </li>
                     ))}
                   </ul>
-                    <div className="mb-2">
-                    <span className="text-xs font-semibold mr-2">Статус:</span>
-                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold shadow-sm
-                      ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
-                      ${order.status === 'manual_processing' ? 'bg-blue-100 text-blue-800' : ''}
-                      ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : ''}
-                      ${order.status === 'error' ? 'bg-red-100 text-red-800' : ''}
-                        ${order.status === 'unpaid' ? 'bg-gray-100 text-gray-800' : ''}
+                    <div className="mb-2 flex items-center gap-2">
+                    <span className="text-xs font-semibold">Статус:</span>
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold border
+                      ${order.status === 'pending' ? 'bg-yellow-50 text-yellow-800 border-yellow-200' : ''}
+                      ${order.status === 'manual_processing' ? 'bg-blue-50 text-blue-800 border-blue-200' : ''}
+                      ${order.status === 'delivered' ? 'bg-green-50 text-green-800 border-green-200' : ''}
+                      ${order.status === 'error' ? 'bg-red-50 text-red-800 border-red-200' : ''}
+                      ${order.status === 'unpaid' ? 'bg-gray-50 text-gray-800 border-gray-200' : ''}
                     `}>
                       {statusLabels[order.status] || order.status}
                     </span>
                   </div>
                 </div>
-                <div className="flex gap-2 mt-2">
-                    {getStatusButtons(order)}
+                <div className="flex gap-2 mt-3">
+                    {getStatusButtons(order).map(btn =>
+                      React.cloneElement(btn, { className: btn.props.className + ' !shadow-none !font-medium !rounded border border-gray-200 hover:border-blue-300' })
+                    )}
                   </div>
                 </div>
               );

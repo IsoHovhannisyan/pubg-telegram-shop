@@ -102,7 +102,7 @@ router.get("/referrals/:userId", verifyToken, async (req, res) => {
 
     // Calculate commission based on referral level
     const referrals = result.rows.map(ref => {
-      const commissionRate = ref.level === 1 ? 0.05 : 0.02; // 5% for level 1, 2% for level 2
+      const commissionRate = ref.level === 1 ? 0.03 : 0.01; // 3% for level 1, 1% for level 2
       const commission = Math.round(ref.total_revenue * commissionRate);
       return {
         ...ref,
@@ -136,6 +136,36 @@ router.post("/referrals", verifyToken, async (req, res) => {
   } catch (err) {
     console.error("❌ Ошибка при создании реферала:", err);
     res.status(500).json({ error: "Ошибка создания реферала" });
+  }
+});
+
+// GET /admin/referrals/user/:userId → get referred_by for a user
+router.get('/referrals/user/:userId', verifyToken, async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const result = await db.query('SELECT referred_by FROM referrals WHERE user_id = $1 ORDER BY level ASC LIMIT 1', [userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No referrer found' });
+    }
+    res.json({ referred_by: result.rows[0].referred_by });
+  } catch (err) {
+    console.error('❌ Error fetching referrer:', err.message);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// GET /admin/referrals/points/:userId → get referral points for a user
+router.get('/points/:userId', verifyToken, async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const result = await db.query('SELECT referral_points FROM users WHERE telegram_id = $1', [userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ referral_points: result.rows[0].referral_points || 0 });
+  } catch (err) {
+    console.error('❌ Error fetching referral points:', err.message);
+    res.status(500).json({ error: 'Database error' });
   }
 });
 

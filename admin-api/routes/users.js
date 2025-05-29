@@ -56,4 +56,19 @@ router.get('/admin/users', verifyToken, async (req, res) => {
   }
 });
 
+// GET /admin/users/:telegram_id/language → get language for a user (protected)
+router.get('/admin/users/:telegram_id/language', verifyToken, async (req, res) => {
+  const { telegram_id } = req.params;
+  try {
+    const result = await db.query('SELECT language FROM users WHERE telegram_id = $1', [telegram_id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ language: result.rows[0].language });
+  } catch (err) {
+    console.error('❌ Error fetching user language:', err.message);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 module.exports = router;

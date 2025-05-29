@@ -1,6 +1,7 @@
 const { Markup } = require('telegraf');
 const userSelections = require('../utils/userSelections');
 const axios = require('axios');
+const db = require('../db/connect');
 require('dotenv').config();
 
 module.exports = async (ctx) => {
@@ -30,15 +31,53 @@ module.exports = async (ctx) => {
   if (ctx.startPayload && ctx.startPayload.startsWith('ref_')) {
     const referredBy = ctx.startPayload.replace('ref_', '');
     if (referredBy && referredBy !== String(userId)) {
-      const API_URL = process.env.API_URL || 'http://localhost:3001';
-      const API_TOKEN = process.env.ADMIN_API_TOKEN;
       try {
+        // Register direct referral (level 1)
         await axios.post(
           `${API_URL}/admin/referrals`,
           { user_id: userId, referred_by: referredBy, level: 1 },
           { headers: { Authorization: `Bearer ${API_TOKEN}` } }
         );
-        // Optionally notify the referrer here
+        // Multi-level: check if referrer was also referred by someone (level 2) via API
+        let grandRef = null;
+        try {
+          const refRes = await axios.get(
+            `${API_URL}/admin/referrals/user/${referredBy}`,
+            { headers: { Authorization: `Bearer ${API_TOKEN}` } }
+          );
+          if (refRes.data && refRes.data.referred_by && refRes.data.referred_by !== String(userId)) {
+            grandRef = refRes.data.referred_by;
+          }
+        } catch {}
+        if (grandRef) {
+          await axios.post(
+            `${API_URL}/admin/referrals`,
+            { user_id: userId, referred_by: grandRef, level: 2 },
+            { headers: { Authorization: `Bearer ${API_TOKEN}` } }
+          );
+        }
+        // Notify the direct referrer (get language via API)
+        let refLang = 'ru';
+        try {
+          const langRes = await axios.get(
+            `${API_URL}/admin/users/${referredBy}/language`,
+            { headers: { Authorization: `Bearer ${API_TOKEN}` } }
+          );
+          if (langRes.data && langRes.data.language) {
+            refLang = langRes.data.language;
+          }
+        } catch {}
+        let refMsg;
+        try {
+          refMsg = require(`../../lang/${refLang}`).referral.new_referral;
+        } catch {
+          refMsg = require('../../lang/ru').referral.new_referral;
+        }
+        try {
+          await ctx.telegram.sendMessage(referredBy, refMsg);
+        } catch (err) {
+          console.error('❌ Не удалось отправить уведомление рефереру:', err.message);
+        }
       } catch (err) {
         console.error('❌ Ошибка при регистрации реферала:', err.message);
       }

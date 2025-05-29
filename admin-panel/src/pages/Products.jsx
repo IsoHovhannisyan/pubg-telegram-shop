@@ -162,6 +162,12 @@ const [form, setForm] = useState({
       image: null,
     });
     setEditingId(product.id);
+    // Show preview if product has an image
+    if (product.image) {
+      setPreview(product.image);
+    } else {
+      setPreview(null);
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
