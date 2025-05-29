@@ -23,14 +23,20 @@ router.get('/:telegram_id', async (req, res) => {
 
 // ✅ POST /users → ստեղծում է նոր user
 router.post('/', async (req, res) => {
-  const { telegram_id, language } = req.body;
+  const { telegram_id, username, first_name, last_name, language } = req.body;
 
   try {
     await db.query(
-      'INSERT INTO users (telegram_id, language) VALUES ($1, $2) ON CONFLICT (telegram_id) DO NOTHING',
-      [telegram_id, language]
+      `INSERT INTO users (telegram_id, username, first_name, last_name, language)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (telegram_id) DO UPDATE SET
+         username = EXCLUDED.username,
+         first_name = EXCLUDED.first_name,
+         last_name = EXCLUDED.last_name,
+         language = EXCLUDED.language`,
+      [telegram_id, username, first_name, last_name, language]
     );
-    res.status(201).json({ message: 'User created' });
+    res.status(201).json({ message: 'User created or updated' });
   } catch (err) {
     console.error('❌ Error inserting user:', err.message);
     res.status(500).json({ error: 'Database error' });

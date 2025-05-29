@@ -47,7 +47,8 @@ app.use('/admin/stock', verifyToken, stockRoutes);
 
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-app.use('/admin/users', verifyToken, userRoutes);
+app.use('/users', userRoutes); // For bot, no verifyToken
+app.use('/admin/users', verifyToken, userRoutes); // For admin panel, with verifyToken
 
 app.use('/', adminRoutes);
 

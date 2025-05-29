@@ -11,12 +11,7 @@ module.exports = async (ctx) => {
 
   let items = [];
   try {
-    const res = await axios.get(`${API_URL}/admin/products`, {
-      params: {
-        category: 'popularity_by_id',
-        status: 'active'
-      }
-    });
+    const res = await axios.get(`${API_URL}/products?category=popularity_by_id`);
     items = res.data.filter(item => item.stock > 0)
       .sort((a, b) => a.price - b.price);
   } catch (err) {
@@ -52,7 +47,19 @@ module.exports.callbackQuery = async (ctx) => {
 
   const userId = ctx.from.id;
   let userData = userSelections.get(userId) || { uc: [], popularity: [], id: null };
-  const list = userData._popularityList || [];
+  let list = userData._popularityList;
+
+  // If not cached, fetch again
+  if (!Array.isArray(list) || !list.length) {
+    try {
+      const res = await axios.get(`${API_URL}/products?category=popularity_by_id`);
+      list = res.data;
+      userData._popularityList = list;
+      userSelections.set(userId, userData);
+    } catch (err) {
+      return ctx.answerCbQuery("❌ Ошибка загрузки товаров", { show_alert: true });
+    }
+  }
 
   const item = list.find(p => p.id.toString() === id);
 
@@ -69,17 +76,14 @@ module.exports.callbackQuery = async (ctx) => {
 
   const existing = userData.popularity.find(p => p.id === item.id);
   if (existing) {
-    // Fetch current stock from DB
-    const res = await axios.get(`${API_URL}/admin/products/${item.id}/stock`);
-    const stock = res.data?.stock ?? 0;
+    // Check stock from list
+    const stock = item.stock ?? 0;
     if (existing.qty + 1 > stock) {
       return ctx.answerCbQuery(`❌ Недостаточно товара на складе. Осталось: ${stock} шт.`, { show_alert: true });
     }
     existing.qty += 1;
   } else {
-    // Fetch current stock from DB
-    const res = await axios.get(`${API_URL}/admin/products/${item.id}/stock`);
-    const stock = res.data?.stock ?? 0;
+    const stock = item.stock ?? 0;
     if (stock <= 0) {
       return ctx.answerCbQuery('❌ Товар закончился', { show_alert: true });
     }
@@ -96,7 +100,7 @@ module.exports.callbackQuery = async (ctx) => {
 
   const lang = await getLang(ctx);
   await ctx.reply(
-    `${item.name} ✅ ${lang.catalog.added}\n🗃 В наличии: ${(await axios.get(`${API_URL}/admin/products/${item.id}/stock`)).data?.stock ?? 0} шт.`,
+    `${item.name} ✅ ${lang.catalog.added}\n🗃 В наличии: ${item.stock ?? 0} шт.`,
     Markup.inlineKeyboard([
       [Markup.button.callback(lang.buttons.to_cart, "go_to_cart")]
     ])
