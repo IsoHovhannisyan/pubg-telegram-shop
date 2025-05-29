@@ -198,7 +198,10 @@ export default function OrdersTable() {
 
       await fetchOrders();
       setSaveMessage('Статус успешно обновлен');
-      setTimeout(() => setSaveMessage(''), 3000);
+      setTimeout(() => {
+        setSaveMessage('');
+        setSelectedOrder(null);
+      }, 1000);
     } catch (err) {
       console.error("❌ Ошибка при обновлении статуса:", err);
       setSaveMessage('Ошибка при обновлении статуса');
@@ -569,7 +572,7 @@ export default function OrdersTable() {
                 onClick={() => setSelectedOrder(null)}
                 disabled={saving}
               >
-                Закрыть
+                {saving ? 'Закрытие...' : 'Закрыть'}
               </button>
             </div>
           </div>

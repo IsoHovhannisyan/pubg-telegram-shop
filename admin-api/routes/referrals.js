@@ -7,8 +7,26 @@ const router = express.Router();
 router.get("/referrals", verifyToken, async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT * FROM referrals
-      ORDER BY created_at DESC
+      SELECT 
+        r.referred_by,
+        u.username,
+        u.first_name,
+        u.last_name,
+        COUNT(DISTINCT r.user_id) as total_referrals,
+        COUNT(DISTINCT o.id) as total_orders,
+        SUM(
+          CASE 
+            WHEN o.status = 'delivered' THEN 
+              (SELECT SUM((item->>'price')::int * (item->>'qty')::int) 
+               FROM jsonb_array_elements(o.products) AS item)
+            ELSE 0 
+          END
+        ) as total_revenue
+      FROM referrals r
+      LEFT JOIN users u ON r.referred_by = u.telegram_id
+      LEFT JOIN orders o ON r.user_id = o.user_id
+      GROUP BY r.referred_by, u.username, u.first_name, u.last_name
+      ORDER BY total_referrals DESC
     `);
     res.json(result.rows);
   } catch (err) {
@@ -21,14 +39,25 @@ router.get("/referrals", verifyToken, async (req, res) => {
 router.get("/referrals/summary", verifyToken, async (req, res) => {
   try {
     // Всего рефералов
-    const totalRes = await db.query(`SELECT COUNT(*) FROM referrals`);
+    const totalRes = await db.query(`SELECT COUNT(DISTINCT user_id) FROM referrals`);
     const totalReferrals = parseInt(totalRes.rows[0].count, 10);
 
     // Топ-5 рефереров (по referred_by)
     const topRes = await db.query(`
-      SELECT referred_by, COUNT(*) as invited_count
-      FROM referrals
-      GROUP BY referred_by
+      SELECT 
+        r.referred_by,
+        COUNT(DISTINCT r.user_id) as invited_count,
+        SUM(
+          CASE 
+            WHEN o.status = 'delivered' THEN 
+              (SELECT SUM((item->>'price')::int * (item->>'qty')::int) 
+               FROM jsonb_array_elements(o.products) AS item)
+            ELSE 0 
+          END
+        ) as total_revenue
+      FROM referrals r
+      LEFT JOIN orders o ON r.user_id = o.user_id
+      GROUP BY r.referred_by
       ORDER BY invited_count DESC
       LIMIT 5
     `);
@@ -49,10 +78,40 @@ router.get("/referrals/:userId", verifyToken, async (req, res) => {
   try {
     const { userId } = req.params;
     const result = await db.query(`
-      SELECT * FROM referrals
-      WHERE referred_by = $1
+      SELECT 
+        r.*,
+        u.username,
+        u.first_name,
+        u.last_name,
+        COUNT(DISTINCT o.id) as total_orders,
+        SUM(
+          CASE 
+            WHEN o.status = 'delivered' THEN 
+              (SELECT SUM((item->>'price')::int * (item->>'qty')::int) 
+               FROM jsonb_array_elements(o.products) AS item)
+            ELSE 0 
+          END
+        ) as total_revenue
+      FROM referrals r
+      LEFT JOIN users u ON r.user_id = u.telegram_id
+      LEFT JOIN orders o ON r.user_id = o.user_id
+      WHERE r.referred_by = $1
+      GROUP BY r.id, u.username, u.first_name, u.last_name
+      ORDER BY r.created_at DESC
     `, [userId]);
-    res.json(result.rows);
+
+    // Calculate commission based on referral level
+    const referrals = result.rows.map(ref => {
+      const commissionRate = ref.level === 1 ? 0.05 : 0.02; // 5% for level 1, 2% for level 2
+      const commission = Math.round(ref.total_revenue * commissionRate);
+      return {
+        ...ref,
+        commission_rate: commissionRate * 100,
+        commission
+      };
+    });
+
+    res.json(referrals);
   } catch (err) {
     console.error("❌ Ошибка при получении реферала:", err);
     res.status(500).json({ error: "Ошибка получения данных" });

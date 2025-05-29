@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../bot/db/connect');
+const verifyToken = require('./verifyToken');
 
 // ✅ GET /users/:telegram_id → ստանում է լեզուն
 router.get('/:telegram_id', async (req, res) => {
@@ -32,6 +33,19 @@ router.post('/', async (req, res) => {
     res.status(201).json({ message: 'User created' });
   } catch (err) {
     console.error('❌ Error inserting user:', err.message);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ✅ GET /admin/users → get all users (for admin panel)
+router.get('/admin/users', verifyToken, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT telegram_id, username, first_name, last_name, language, created_at FROM users ORDER BY created_at DESC'
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('❌ Error fetching all users:', err.message);
     res.status(500).json({ error: 'Database error' });
   }
 });

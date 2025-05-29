@@ -47,7 +47,7 @@ app.use('/admin/stock', verifyToken, stockRoutes);
 
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-app.use('/users', userRoutes);
+app.use('/admin/users', verifyToken, userRoutes);
 
 app.use('/', adminRoutes);
 

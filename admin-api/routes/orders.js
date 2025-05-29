@@ -155,6 +155,12 @@ router.patch('/:id', verifyToken, async (req, res) => {
       ? order.products
       : JSON.parse(order.products || '[]');
 
+    // Check if order contains manual processing items
+    const needsManualProcessing = products.some(p => 
+      p.type === 'manual' || 
+      ['POPULARITY_ID', 'POPULARITY_HOME', 'CARS', 'COSTUMES'].includes(p.category)
+    );
+
     // Only update status and nickname (if provided)
     let query, params;
     if (nickname !== undefined) {
@@ -200,6 +206,63 @@ router.patch('/:id', verifyToken, async (req, res) => {
       }
     }
     // --- END STOCK LOGIC ---
+
+    // --- NOTIFICATION LOGIC ---
+    // 1. Notify managers when order needs manual processing
+    if (needsManualProcessing && status === 'pending') {
+      const itemsText = products.map(p => 
+        `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
+      ).join('\n');
+
+      const message = `🆕 <b>Новый заказ требует обработки!</b>\n\n` +
+        `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
+        `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
+        `${itemsText}\n\n` +
+        `💰 Сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n` +
+        `📦 Статус: ${status}\n\n` +
+        `⚠️ Требуется ручная обработка`;
+
+      // Get manager IDs from environment variable
+      const managerIds = process.env.MANAGER_IDS ? process.env.MANAGER_IDS.split(',') : [];
+      
+      // Send notification to all managers
+      for (const managerId of managerIds) {
+        try {
+          await bot.telegram.sendMessage(managerId, message, { parse_mode: 'HTML' });
+        } catch (err) {
+          console.error(`❌ Failed to send notification to manager ${managerId}:`, err.message);
+        }
+      }
+    }
+
+    // 2. Notify user about status change
+    if (order.user_id) {
+      let userMessage = '';
+      if (status === 'delivered') {
+        userMessage = `✅ <b>Ваш заказ доставлен!</b>\n\n` +
+          `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
+          `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
+          `${products.map(p => `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n')}\n\n` +
+          `💰 Сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n\n` +
+          `Спасибо за покупку! 🎉`;
+      } else if (status === 'error') {
+        userMessage = `❌ <b>Произошла ошибка при обработке заказа</b>\n\n` +
+          `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
+          `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
+          `${products.map(p => `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n')}\n\n` +
+          `💰 Сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n\n` +
+          `Наши менеджеры уже работают над решением проблемы. Мы свяжемся с вами в ближайшее время.`;
+      }
+
+      if (userMessage) {
+        try {
+          await bot.telegram.sendMessage(order.user_id, userMessage, { parse_mode: 'HTML' });
+        } catch (err) {
+          console.error(`❌ Failed to send status update to user ${order.user_id}:`, err.message);
+        }
+      }
+    }
+    // --- END NOTIFICATION LOGIC ---
 
     res.json(result.rows[0]);
   } catch (err) {
