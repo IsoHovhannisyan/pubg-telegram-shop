@@ -3,100 +3,147 @@ require('dotenv').config();
 
 console.log("🔧 Loaded DB_URL:", process.env.DB_URL);
 
-let pool = createPool();
+let pool;
+let isReconnecting = false;
 let reconnectAttempts = 0;
-const maxReconnectAttempts = 5;
-const reconnectDelay = 5000; // 5 seconds
+const MAX_RECONNECT_ATTEMPTS = 10;
+const RECONNECT_DELAY = 5000; // 5 seconds
 
-function createPool() {
+const createPool = () => {
   return new Pool({
     connectionString: process.env.DB_URL,
-    max: 2, // Limit pool size for free-tier DB
-    ssl: {
-      rejectUnauthorized: false,
-    },
-    idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-    connectionTimeoutMillis: 2000, // Wait 2 seconds for connection
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    connectionTimeoutMillis: 30000,
+    idleTimeoutMillis: 300000,
+    max: 20,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000
   });
-}
+};
 
-async function handlePoolError() {
-  console.log('🔄 Pool error detected, attempting to reconnect...');
-  if (pool) {
-    try {
-      await pool.end();
-    } catch (err) {
-      console.error('Error closing pool:', err);
-    }
-  }
-  pool = null;
-  return reconnect();
-}
+const initializePool = () => {
+  pool = createPool();
 
-async function reconnect() {
-  if (reconnectAttempts >= maxReconnectAttempts) {
-    console.error('❌ Max reconnection attempts reached. Please check your database connection.');
-    return null;
-  }
+  pool.on('error', async (err, client) => {
+    console.error('❌ Database connection error:', err);
+    await handleReconnect();
+  });
 
-  reconnectAttempts++;
-  console.log(`🔄 Attempting to reconnect (${reconnectAttempts}/${maxReconnectAttempts})...`);
-  
-  // Wait before attempting to reconnect
-  await new Promise(resolve => setTimeout(resolve, reconnectDelay));
-  
+  // Test initial connection
+  return testConnection();
+};
+
+const testConnection = async () => {
   try {
-    pool = createPool();
-    // Test the connection
     const client = await pool.connect();
+    console.log('✅ Successfully connected to database');
     client.release();
-    console.log('✅ Database connection reestablished');
     reconnectAttempts = 0; // Reset reconnect attempts on successful connection
-    return pool;
+    return true;
   } catch (err) {
-    console.error('❌ Reconnection failed:', err.message);
-    return reconnect();
+    console.error('❌ Failed to connect to database:', err);
+    await handleReconnect();
+    return false;
   }
-}
+};
 
-async function query(text, params, retry = true) {
+const handleReconnect = async () => {
+  if (isReconnecting) return;
+  
+  isReconnecting = true;
+  reconnectAttempts++;
+
+  console.log(`🔄 Attempting to reconnect (Attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+
+  try {
+    // Close existing pool if it exists
+    if (pool) {
+      await pool.end();
+    }
+
+    // Create new pool
+    pool = createPool();
+    
+    // Test the new connection
+    const connected = await testConnection();
+    
+    if (connected) {
+      console.log('✅ Successfully reconnected to database');
+      isReconnecting = false;
+      return;
+    }
+  } catch (err) {
+    console.error('❌ Reconnection attempt failed:', err);
+  }
+
+  isReconnecting = false;
+
+  // If we haven't exceeded max attempts, try again
+  if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+    setTimeout(handleReconnect, RECONNECT_DELAY);
+  } else {
+    console.error('❌ Max reconnection attempts reached. Please check your database connection.');
+    // Reset attempts after a longer delay and try again
+    setTimeout(() => {
+      reconnectAttempts = 0;
+      handleReconnect();
+    }, RECONNECT_DELAY * 5);
+  }
+};
+
+// Keep-alive query function
+const keepAlive = async () => {
   try {
     if (!pool) {
-      await reconnect();
+      console.log('⚠️ Pool not initialized, attempting to reconnect...');
+      await handleReconnect();
+      return;
     }
-    return await pool.query(text, params);
+    await pool.query('SELECT 1');
+    console.log('💚 Keep-alive query successful');
   } catch (err) {
-    console.error('❌ Query error:', err.message);
-
-    if (retry && isConnectionError(err)) {
-      console.warn('🔄 Reconnecting to database...');
-      await handlePoolError();
-      return query(text, params, false); // Try query one more time
-    }
-
-    throw err;
+    console.error('❌ Keep-alive query failed:', err);
+    await handleReconnect();
   }
-}
+};
 
-function isConnectionError(err) {
-  return (
-    err.code === 'ECONNRESET' ||
-    err.code === 'ECONNREFUSED' ||
-    err.code === 'XX000' ||
-    err.code === '08006' ||
-    err.code === '08001' ||
-    err.message.includes('Connection terminated unexpectedly') ||
-    err.message.includes('server closed the connection unexpectedly')
-  );
-}
+// Run keep-alive query every 5 minutes
+setInterval(keepAlive, 300000);
 
-// Handle pool errors
-pool.on('error', async (err) => {
-  console.error('Unexpected error on idle client', err);
-  await handlePoolError();
+// Add connection retry logic with exponential backoff
+const query = async (text, params) => {
+  let retries = 5;
+  let delay = 1000;
+  
+  while (retries > 0) {
+    try {
+      if (!pool) {
+        await handleReconnect();
+      }
+      const client = await pool.connect();
+      try {
+        return await client.query(text, params);
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      retries--;
+      if (retries === 0) throw err;
+      
+      console.log(`🔄 Retrying query... ${retries} attempts left. Waiting ${delay}ms`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2;
+    }
+  }
+};
+
+// Initialize the pool
+initializePool().catch(err => {
+  console.error('❌ Failed to initialize database connection:', err);
 });
 
 module.exports = {
   query,
-  pool: () => pool,
+  pool: () => pool, // Export a function to get the current pool
+  testConnection
 };
