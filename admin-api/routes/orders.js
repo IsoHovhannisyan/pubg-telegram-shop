@@ -221,9 +221,9 @@ router.patch('/:id', verifyToken, async (req, res) => {
       userInfo = userRes.rows[0];
     } catch (e) { userInfo = null; }
 
-    const itemsText = products.map(p => 
-      `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
-    ).join('\n');
+      const itemsText = products.map(p => 
+        `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
+      ).join('\n');
 
     // Get unique categories and their labels
     const categories = [...new Set(products.map(p => p.category))];
@@ -284,11 +284,11 @@ router.patch('/:id', verifyToken, async (req, res) => {
         `📦 Новый статус: <b>${status}</b>`;
     }
 
-    for (const managerId of managerIds) {
-      try {
+      for (const managerId of managerIds) {
+        try {
         await bot.telegram.sendMessage(managerId, managerMessage, { parse_mode: 'HTML' });
-      } catch (err) {
-        console.error(`❌ Failed to send notification to manager ${managerId}:`, err.message);
+        } catch (err) {
+          console.error(`❌ Failed to send notification to manager ${managerId}:`, err.message);
       }
     }
 

@@ -107,6 +107,39 @@ const handleFreekassaCallback = async (req, res) => {
       { headers: { Authorization: `Bearer ${API_TOKEN}` } }
     );
 
+    // --- MANAGER NOTIFICATION ON UC ACTIVATION ERROR ---
+    if (hasErrors && products.some(p => p.category === 'uc_by_id')) {
+      // Get manager IDs from env
+      let managerIds = [];
+      if (process.env.MANAGER_CHAT_ID) managerIds.push(process.env.MANAGER_CHAT_ID);
+      if (process.env.MANAGER_IDS) managerIds = managerIds.concat(process.env.MANAGER_IDS.split(','));
+      managerIds = [...new Set(managerIds.filter(Boolean))];
+
+      // Fetch user info (if available)
+      let userInfo = null;
+      try {
+        const userRes = await axios.get(`${API_URL}/admin/users/${order.user_id}`, { headers: { Authorization: `Bearer ${API_TOKEN}` } });
+        userInfo = userRes.data;
+      } catch (e) { userInfo = null; }
+
+      const errorDetails = results.filter(r => r.status === 'error').map(r => `❌ ${r.product}: ${r.error}`).join('\n');
+      const managerMessage = `❌ <b>Ошибка активации заказа (UC)</b>\n\n` +
+        `ID заказа: <b>${order.id}</b>\n` +
+        `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
+        `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
+        `${userInfo ? `🆔 Telegram: <b>${order.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
+        `${itemsText}\n\n` +
+        `💰 Сумма: ${AMOUNT} ₽\n` +
+        `⚠️ <b>Ошибка активации:</b>\n${errorDetails}`;
+      for (const managerId of managerIds) {
+        try {
+          await bot.telegram.sendMessage(managerId, managerMessage, { parse_mode: 'HTML' });
+        } catch (err) {
+          console.error(`❌ Failed to send UC activation error to manager ${managerId}:`, err.message);
+        }
+      }
+    }
+
     return res.send('YES');
   } catch (err) {
     console.error('❌ Error in Freekassa callback:', err.message);
