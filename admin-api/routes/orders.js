@@ -208,30 +208,35 @@ router.patch('/:id', verifyToken, async (req, res) => {
     // --- END STOCK LOGIC ---
 
     // --- NOTIFICATION LOGIC ---
-    // 1. Notify managers when order needs manual processing
-    if (needsManualProcessing && status === 'pending') {
-      const itemsText = products.map(p => 
-        `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
-      ).join('\n');
+    // Notify managers on every status change
+    let managerIds = [];
+    if (process.env.MANAGER_CHAT_ID) managerIds.push(process.env.MANAGER_CHAT_ID);
+    if (process.env.MANAGER_IDS) managerIds = managerIds.concat(process.env.MANAGER_IDS.split(','));
+    managerIds = [...new Set(managerIds.filter(Boolean))]; // Remove duplicates and falsy
 
-      const message = `🆕 <b>Новый заказ требует обработки!</b>\n\n` +
-        `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
-        `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
-        `${itemsText}\n\n` +
-        `💰 Сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n` +
-        `📦 Статус: ${status}\n\n` +
-        `⚠️ Требуется ручная обработка`;
+    // Fetch user info for username
+    let userInfo = null;
+    try {
+      const userRes = await db.query('SELECT username FROM users WHERE telegram_id = $1', [order.user_id]);
+      userInfo = userRes.rows[0];
+    } catch (e) { userInfo = null; }
 
-      // Get manager IDs from environment variable
-      const managerIds = process.env.MANAGER_IDS ? process.env.MANAGER_IDS.split(',') : [];
-      
-      // Send notification to all managers
-      for (const managerId of managerIds) {
-        try {
-          await bot.telegram.sendMessage(managerId, message, { parse_mode: 'HTML' });
-        } catch (err) {
-          console.error(`❌ Failed to send notification to manager ${managerId}:`, err.message);
-        }
+    const itemsText = products.map(p => 
+      `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
+    ).join('\n');
+    const managerMessage = `🔔 <b>Статус заказа обновлён</b>\n\n` +
+      `ID заказа: <b>${order.id}</b>\n` +
+      `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
+      `${order.nickname ? `👤 Никнейм: ${order.nickname}\n` : ''}` +
+      `${userInfo ? `🆔 Telegram: <b>${order.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
+      `${itemsText}\n\n` +
+      `💰 Сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n` +
+      `📦 Новый статус: <b>${status}</b>`;
+    for (const managerId of managerIds) {
+      try {
+        await bot.telegram.sendMessage(managerId, managerMessage, { parse_mode: 'HTML' });
+      } catch (err) {
+        console.error(`❌ Failed to send notification to manager ${managerId}:`, err.message);
       }
     }
 
