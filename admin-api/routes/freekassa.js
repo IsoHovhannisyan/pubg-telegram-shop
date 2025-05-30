@@ -11,18 +11,24 @@ const pool = new Pool({
 
 // Freekassa callback endpoint
 router.post('/callback', async (req, res) => {
-  console.log('Received Freekassa callback:', req.body);
+  console.log('Received Freekassa callback headers:', req.headers);
+  console.log('Received Freekassa callback body:', req.body);
+  console.log('Received Freekassa callback raw body:', req.rawBody);
   
-  // Freekassa sends form data, not JSON
-  let body = req.body;
-  if (typeof body === 'string') {
-    body = Object.fromEntries(new URLSearchParams(body));
+  // Freekassa sends form data
+  const body = req.body;
+  
+  if (!body) {
+    console.error('No body received in callback');
+    return res.status(400).send('No data received');
   }
 
-  const { MERCHANT_ORDER_ID, AMOUNT, SIGN } = body;
+  const MERCHANT_ORDER_ID = body.MERCHANT_ORDER_ID;
+  const AMOUNT = body.AMOUNT;
+  const SIGN = body.SIGN;
   const SECRET_2 = process.env.FREEKASSA_SECRET_2;
 
-  console.log('Callback data:', { MERCHANT_ORDER_ID, AMOUNT, SIGN });
+  console.log('Parsed callback data:', { MERCHANT_ORDER_ID, AMOUNT, SIGN });
 
   if (!SECRET_2) {
     console.error('Missing FREEKASSA_SECRET_2');
