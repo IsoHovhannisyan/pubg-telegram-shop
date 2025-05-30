@@ -115,7 +115,7 @@ router.post('/link', async (req, res) => {
     o: orderId,
     s: signature,
     currency: 'RUB', // Add currency parameter
-    i: '0' // Add payment system parameter (0 for all systems)
+    i: '1' // Set payment system parameter to 1 (required)
   });
   
   const link = `https://pay.freekassa.ru/?${params.toString()}`;
