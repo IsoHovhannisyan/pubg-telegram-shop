@@ -32,8 +32,9 @@ router.post('/callback', async (req, res) => {
   const AMOUNT = body.AMOUNT;
   const SIGN = body.SIGN;
   const SECRET_2 = process.env.FREEKASSA_SECRET_2;
+  const IS_TEST = body.IS_TEST === '1'; // Check if this is a test payment
 
-  console.log('Parsed payment notification data:', { MERCHANT_ORDER_ID, AMOUNT, SIGN });
+  console.log('Parsed payment notification data:', { MERCHANT_ORDER_ID, AMOUNT, SIGN, IS_TEST });
 
   if (!SECRET_2) {
     console.error('Missing FREEKASSA_SECRET_2');
@@ -86,6 +87,7 @@ router.post('/link', async (req, res) => {
   const { orderId, amount } = req.body;
   const merchantId = process.env.FREEKASSA_MERCHANT_ID;
   const secretWord1 = process.env.FREEKASSA_SECRET_1;
+  const isTestMode = process.env.FREEKASSA_TEST_MODE === 'true';
 
   if (!merchantId || !secretWord1) {
     console.error('Missing Freekassa credentials:', { 
@@ -115,10 +117,13 @@ router.post('/link', async (req, res) => {
     o: orderId,
     s: signature,
     currency: 'RUB', // Add currency parameter
-    i: '1' // Set payment system parameter to 1 (required)
+    i: '1', // Set payment system parameter to 1 (required)
+    test: isTestMode ? '1' : '0' // Add test mode parameter
   });
   
-  const link = `https://pay.freekassa.ru/?${params.toString()}`;
+  // Use test mode URL if in test mode
+  const baseUrl = isTestMode ? 'https://test.freekassa.ru' : 'https://pay.freekassa.ru';
+  const link = `${baseUrl}/?${params.toString()}`;
   console.log('Generated payment link:', link);
   
   return res.json({ link });
