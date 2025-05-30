@@ -85,7 +85,7 @@ module.exports = {
     header: "👥 Your referral system",
     link_label: "🔗 Your referral link:",
     instruction: "Send this link to your friends to invite them and earn bonuses!",
-    level1_expl: "✅ 5% from every order of a direct friend (Level 1)",
+    level1_expl: "✅ 3% from every order of a direct friend (Level 1)",
     level2_expl: "✅ 1% from every order of a friend's friend (Level 2)",
     note: "You only earn points if your friend or their friend makes a real purchase.",
     invited_friends: "👤 Invited friends (Level 1):",
@@ -95,13 +95,14 @@ module.exports = {
     paid_orders_level2: "▫️ Level 2: <b>{orders}</b> for a total of <b>{revenue} ₽</b>",
     no_paid_orders_level2: "▫️ <i>No paid orders from your friends' friends yet. As soon as they buy something, you'll get 1% from their purchases.</i>",
     points_earned: "<b>Points earned:</b>",
-    points_level1: "▫️ 5% from Level 1: <b>{points} points</b>",
+    points_level1: "▫️ 3% from Level 1: <b>{points} points</b>",
     points_level2: "▫️ 1% from Level 2: <b>{points} points</b>",
     total_points: "Total points: {points} points",
     conversion: "1 point = 1 ruble. You can exchange points for UC or money via @inv1s_shop",
     invited_list: "<b>List of invited users:</b>",
     invited_row: "{n}. <b>ID:</b> <code>{id}</code> | <b>Level:</b> {level} | <b>Orders:</b> {orders} | <b>Points:</b> {points} | <b>Date:</b> {date}",
-    no_invited: "You have no invited users yet."
+    no_invited: "You have no invited users yet.",
+    new_referral: "🎉 You have a new referral! Someone joined using your link. Keep sharing to earn more rewards!"
   },
 };
 

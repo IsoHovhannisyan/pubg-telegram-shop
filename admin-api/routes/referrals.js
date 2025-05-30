@@ -3,29 +3,42 @@ const db = require("../../bot/db/connect");
 const verifyToken = require("../routes/verifyToken");
 const router = express.Router();
 
-// 📥 Получить реферальные данные всех пользователей
+// 📥 Получить реферальные данные всех пользователей (правильная двухуровневая логика)
 router.get("/referrals", verifyToken, async (req, res) => {
   try {
     const result = await db.query(`
       SELECT 
-        r.referred_by,
+        u.telegram_id as referred_by,
         u.username,
         u.first_name,
         u.last_name,
-        COUNT(DISTINCT r.user_id) as total_referrals,
-        COUNT(DISTINCT o.id) as total_orders,
-        SUM(
-          CASE 
-            WHEN o.status = 'delivered' THEN 
-              (SELECT SUM((item->>'price')::int * (item->>'qty')::int) 
-               FROM jsonb_array_elements(o.products) AS item)
-            ELSE 0 
-          END
-        ) as total_revenue
-      FROM referrals r
-      LEFT JOIN users u ON r.referred_by = u.telegram_id
-      LEFT JOIN orders o ON r.user_id = o.user_id
-      GROUP BY r.referred_by, u.username, u.first_name, u.last_name
+        -- L1: прямые рефералы
+        (SELECT COUNT(*) FROM referrals r1 WHERE r1.referred_by = u.telegram_id) as level1_referrals,
+        -- L2: рефералы рефералов
+        (SELECT COUNT(*) FROM referrals r2 WHERE r2.referred_by IN (SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by = u.telegram_id)) as level2_referrals,
+        -- Всего
+        ((SELECT COUNT(*) FROM referrals r1 WHERE r1.referred_by = u.telegram_id) +
+         (SELECT COUNT(*) FROM referrals r2 WHERE r2.referred_by IN (SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by = u.telegram_id))) as total_referrals,
+        -- Заказы всех рефералов (L1 + L2)
+        (SELECT COUNT(DISTINCT o1.id) FROM orders o1 WHERE o1.user_id IN (
+          SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by = u.telegram_id
+          UNION
+          SELECT r2.user_id FROM referrals r2 WHERE r2.referred_by IN (SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by = u.telegram_id)
+        )) as total_orders,
+        -- Общая выручка
+        (SELECT COALESCE(SUM((item->>'price')::int * (item->>'qty')::int),0) FROM orders o1, LATERAL jsonb_array_elements(o1.products) item WHERE o1.user_id IN (
+          SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by = u.telegram_id
+          UNION
+          SELECT r2.user_id FROM referrals r2 WHERE r2.referred_by IN (SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by = u.telegram_id)
+        ) AND o1.status != 'unpaid') as total_revenue,
+        -- Реферальные баллы (3% с L1, 1% с L2)
+        (
+          COALESCE((SELECT SUM((item->>'price')::int * (item->>'qty')::int) * 0.03 FROM orders o1, LATERAL jsonb_array_elements(o1.products) item WHERE o1.user_id IN (SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by = u.telegram_id) AND o1.status != 'unpaid'),0)
+          +
+          COALESCE((SELECT SUM((item->>'price')::int * (item->>'qty')::int) * 0.01 FROM orders o2, LATERAL jsonb_array_elements(o2.products) item WHERE o2.user_id IN (SELECT r2.user_id FROM referrals r2 WHERE r2.referred_by IN (SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by = u.telegram_id)) AND o2.status != 'unpaid'),0)
+        ) as referral_points
+      FROM users u
+      WHERE EXISTS (SELECT 1 FROM referrals r WHERE r.referred_by = u.telegram_id)
       ORDER BY total_referrals DESC
     `);
     res.json(result.rows);
@@ -35,36 +48,43 @@ router.get("/referrals", verifyToken, async (req, res) => {
   }
 });
 
-// 📊 Получить сводную статистику по рефералам
+// 📊 Получить сводную статистику по рефералам (правильная двухуровневая логика)
 router.get("/referrals/summary", verifyToken, async (req, res) => {
   try {
-    // Всего рефералов
-    const totalRes = await db.query(`SELECT COUNT(DISTINCT user_id) FROM referrals`);
-    const totalReferrals = parseInt(totalRes.rows[0].count, 10);
+    // Total L1, L2, and total referrals
+    const totalRes = await db.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM referrals WHERE referred_by IS NOT NULL) as total_referrals,
+        (SELECT COUNT(*) FROM referrals r1 WHERE r1.referred_by IS NOT NULL) as level1_count,
+        (SELECT COUNT(*) FROM referrals r2 WHERE r2.referred_by IN (SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by IS NOT NULL)) as level2_count
+    `);
+    const referralStats = totalRes.rows[0];
 
-    // Топ-5 рефереров (по referred_by)
+    // Top referrers with correct L1/L2/commission breakdown
     const topRes = await db.query(`
       SELECT 
-        r.referred_by,
-        COUNT(DISTINCT r.user_id) as invited_count,
-        SUM(
-          CASE 
-            WHEN o.status = 'delivered' THEN 
-              (SELECT SUM((item->>'price')::int * (item->>'qty')::int) 
-               FROM jsonb_array_elements(o.products) AS item)
-            ELSE 0 
-          END
-        ) as total_revenue
-      FROM referrals r
-      LEFT JOIN orders o ON r.user_id = o.user_id
-      GROUP BY r.referred_by
-      ORDER BY invited_count DESC
+        u.telegram_id as referred_by,
+        u.username,
+        u.first_name,
+        u.last_name,
+        (SELECT COUNT(*) FROM referrals r1 WHERE r1.referred_by = u.telegram_id) as level1_invited,
+        (SELECT COUNT(*) FROM referrals r2 WHERE r2.referred_by IN (SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by = u.telegram_id)) as level2_invited,
+        ((SELECT COUNT(*) FROM referrals r1 WHERE r1.referred_by = u.telegram_id) +
+         (SELECT COUNT(*) FROM referrals r2 WHERE r2.referred_by IN (SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by = u.telegram_id))) as total_invited,
+        (
+          COALESCE((SELECT SUM((item->>'price')::int * (item->>'qty')::int) * 0.03 FROM orders o1, LATERAL jsonb_array_elements(o1.products) item WHERE o1.user_id IN (SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by = u.telegram_id) AND o1.status = 'delivered'),0)
+          +
+          COALESCE((SELECT SUM((item->>'price')::int * (item->>'qty')::int) * 0.01 FROM orders o2, LATERAL jsonb_array_elements(o2.products) item WHERE o2.user_id IN (SELECT r2.user_id FROM referrals r2 WHERE r2.referred_by IN (SELECT r1.user_id FROM referrals r1 WHERE r1.referred_by = u.telegram_id)) AND o2.status = 'delivered'),0)
+        ) as total_commission
+      FROM users u
+      WHERE EXISTS (SELECT 1 FROM referrals r WHERE r.referred_by = u.telegram_id)
+      ORDER BY total_invited DESC
       LIMIT 5
     `);
     const topReferrers = topRes.rows;
 
     res.json({
-      totalReferrals,
+      referralStats,
       topReferrers
     });
   } catch (err) {
@@ -73,44 +93,44 @@ router.get("/referrals/summary", verifyToken, async (req, res) => {
   }
 });
 
-// 📥 Получить рефералы, где пригласивший = userId
+// 📥 Получить рефералы, где пригласивший = userId (правильная двухуровневая логика)
 router.get("/referrals/:userId", verifyToken, async (req, res) => {
   try {
     const { userId } = req.params;
-    const result = await db.query(`
+    // L1 referrals
+    const l1 = await db.query(`
       SELECT 
-        r.*,
+        r.user_id,
         u.username,
         u.first_name,
         u.last_name,
-        COUNT(DISTINCT o.id) as total_orders,
-        SUM(
-          CASE 
-            WHEN o.status = 'delivered' THEN 
-              (SELECT SUM((item->>'price')::int * (item->>'qty')::int) 
-               FROM jsonb_array_elements(o.products) AS item)
-            ELSE 0 
-          END
-        ) as total_revenue
+        1 as level,
+        r.created_at,
+        (SELECT COUNT(DISTINCT o.id) FROM orders o WHERE o.user_id = r.user_id) as total_orders,
+        (SELECT COALESCE(SUM((item->>'price')::int * (item->>'qty')::int),0) FROM orders o, LATERAL jsonb_array_elements(o.products) item WHERE o.user_id = r.user_id AND o.status != 'unpaid') as total_revenue,
+        ROUND((SELECT COALESCE(SUM((item->>'price')::int * (item->>'qty')::int),0) * 0.03 FROM orders o, LATERAL jsonb_array_elements(o.products) item WHERE o.user_id = r.user_id AND o.status != 'unpaid'), 2) as commission
       FROM referrals r
       LEFT JOIN users u ON r.user_id = u.telegram_id
-      LEFT JOIN orders o ON r.user_id = o.user_id
       WHERE r.referred_by = $1
-      GROUP BY r.id, u.username, u.first_name, u.last_name
-      ORDER BY r.created_at DESC
     `, [userId]);
-
-    // Calculate commission based on referral level
-    const referrals = result.rows.map(ref => {
-      const commissionRate = ref.level === 1 ? 0.05 : 0.01; // 5% for level 1, 1% for level 2
-      const commission = Math.round(ref.total_revenue * commissionRate);
-      return {
-        ...ref,
-        commission_rate: commissionRate * 100,
-        commission
-      };
-    });
-
+    // L2 referrals
+    const l2 = await db.query(`
+      SELECT 
+        r.user_id,
+        u.username,
+        u.first_name,
+        u.last_name,
+        2 as level,
+        r.created_at,
+        (SELECT COUNT(DISTINCT o.id) FROM orders o WHERE o.user_id = r.user_id) as total_orders,
+        (SELECT COALESCE(SUM((item->>'price')::int * (item->>'qty')::int),0) FROM orders o, LATERAL jsonb_array_elements(o.products) item WHERE o.user_id = r.user_id AND o.status != 'unpaid') as total_revenue,
+        ROUND((SELECT COALESCE(SUM((item->>'price')::int * (item->>'qty')::int),0) * 0.01 FROM orders o, LATERAL jsonb_array_elements(o.products) item WHERE o.user_id = r.user_id AND o.status != 'unpaid'), 2) as commission
+      FROM referrals r
+      LEFT JOIN users u ON r.user_id = u.telegram_id
+      WHERE r.referred_by IN (SELECT user_id FROM referrals WHERE referred_by = $1)
+    `, [userId]);
+    const referrals = [...l1.rows, ...l2.rows];
+    referrals.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     res.json(referrals);
   } catch (err) {
     console.error("❌ Ошибка при получении реферала:", err);

@@ -208,15 +208,15 @@ router.patch('/:id', verifyToken, async (req, res) => {
     // --- END STOCK LOGIC ---
 
     // --- REFERRAL POINTS LOGIC ---
-    // Award referral points only when order is delivered for the first time
-    if (status === 'delivered' && prevStatus !== 'delivered') {
+    // Award referral points if previous status is 'unpaid' and new status is NOT 'unpaid'
+    if (prevStatus === 'unpaid' && status !== 'unpaid') {
       try {
         // Find direct (level 1) referrer
         const ref1Res = await db.query('SELECT referred_by FROM referrals WHERE user_id = $1 AND level = 1', [order.user_id]);
         if (ref1Res.rows.length > 0 && ref1Res.rows[0].referred_by) {
           const ref1 = ref1Res.rows[0].referred_by;
           const orderTotal = products.reduce((sum, p) => sum + (p.price * p.qty), 0);
-          const points1 = Math.round(orderTotal * 0.05); // 5% for level 1
+          const points1 = Math.round(orderTotal * 0.03); // 3% for level 1
           await db.query('UPDATE users SET referral_points = COALESCE(referral_points,0) + $1 WHERE telegram_id = $2', [points1, ref1]);
         }
         // Find level 2 (grandparent) referrer
@@ -224,7 +224,7 @@ router.patch('/:id', verifyToken, async (req, res) => {
         if (ref2Res.rows.length > 0 && ref2Res.rows[0].referred_by) {
           const ref2 = ref2Res.rows[0].referred_by;
           const orderTotal = products.reduce((sum, p) => sum + (p.price * p.qty), 0);
-          const points2 = Math.round(orderTotal * 0.01);
+          const points2 = Math.round(orderTotal * 0.01); // 1% for level 2
           await db.query('UPDATE users SET referral_points = COALESCE(referral_points,0) + $1 WHERE telegram_id = $2', [points2, ref2]);
         }
       } catch (err) {

@@ -19,12 +19,12 @@ module.exports = async (ctx) => {
         username: ctx.from.username || null,
         first_name: ctx.from.first_name || null,
         last_name: ctx.from.last_name || null,
-        language: 'ru' // Default, will be updated on language selection
+        language: 'ru' // Default to Russian until user selects a language
       },
       API_TOKEN ? { headers: { Authorization: `Bearer ${API_TOKEN}` } } : undefined
     );
   } catch (err) {
-    console.error('❌ Ошибка при сохранении пользователя:', err.message);
+    console.error('❌ Error saving user:', err.message);
   }
 
   // Referral logic
@@ -32,54 +32,86 @@ module.exports = async (ctx) => {
     const referredBy = ctx.startPayload.replace('ref_', '');
     if (referredBy && referredBy !== String(userId)) {
       try {
-        // Register direct referral (level 1)
-        await axios.post(
-          `${API_URL}/admin/referrals`,
-          { user_id: userId, referred_by: referredBy, level: 1 },
-          { headers: { Authorization: `Bearer ${API_TOKEN}` } }
-        );
-        // Multi-level: check if referrer was also referred by someone (level 2) via API
-        let grandRef = null;
+        // Check if user is already referred by this specific referrer
+        let isExistingReferral = false;
         try {
-          const refRes = await axios.get(
-            `${API_URL}/admin/referrals/user/${referredBy}`,
+          const existingRefRes = await axios.get(
+            `${API_URL}/admin/referrals/user/${userId}`,
             { headers: { Authorization: `Bearer ${API_TOKEN}` } }
           );
-          if (refRes.data && refRes.data.referred_by && refRes.data.referred_by !== String(userId)) {
-            grandRef = refRes.data.referred_by;
-          }
-        } catch {}
-        if (grandRef) {
+          // If user has any referrers, they are already in the system
+          isExistingReferral = existingRefRes.data && existingRefRes.data.length > 0;
+        } catch (err) {
+          // If error, assume user is not a referral
+          isExistingReferral = false;
+        }
+
+        // Only proceed if user is not already referred
+        if (!isExistingReferral) {
+          // Register direct referral (level 1)
           await axios.post(
             `${API_URL}/admin/referrals`,
-            { user_id: userId, referred_by: grandRef, level: 2 },
+            { user_id: userId, referred_by: referredBy, level: 1 },
             { headers: { Authorization: `Bearer ${API_TOKEN}` } }
           );
-        }
-        // Notify the direct referrer (get language via API)
-        let refLang = 'ru';
-        try {
-          const langRes = await axios.get(
-            `${API_URL}/admin/users/${referredBy}/language`,
-            { headers: { Authorization: `Bearer ${API_TOKEN}` } }
-          );
-          if (langRes.data && langRes.data.language) {
-            refLang = langRes.data.language;
+
+          // Multi-level: check if referrer was also referred by someone (level 2) via API
+          let grandRef = null;
+          try {
+            const refRes = await axios.get(
+              `${API_URL}/admin/referrals/user/${referredBy}`,
+              { headers: { Authorization: `Bearer ${API_TOKEN}` } }
+            );
+            // Find the level 1 referral for the referrer
+            if (refRes.data && Array.isArray(refRes.data)) {
+              const level1Ref = refRes.data.find(r => r.level === 1);
+              if (level1Ref && level1Ref.referred_by && level1Ref.referred_by !== String(userId)) {
+                grandRef = level1Ref.referred_by;
+              }
+            }
+          } catch (err) {
+            console.error('❌ Error checking grand referrer:', err.message);
           }
-        } catch {}
-        let refMsg;
-        try {
-          refMsg = require(`../../lang/${refLang}`).referral.new_referral;
-        } catch {
-          refMsg = require('../../lang/ru').referral.new_referral;
-        }
-        try {
+
+          if (grandRef) {
+            await axios.post(
+              `${API_URL}/admin/referrals`,
+              { user_id: userId, referred_by: grandRef, level: 2 },
+              { headers: { Authorization: `Bearer ${API_TOKEN}` } }
+            );
+          }
+
+          // Notify the direct referrer (get language via API)
+          let refLang = 'ru'; // Default to Russian
+          try {
+            // Get the referrer's language from the API
+            const langRes = await axios.get(
+              `${API_URL}/users/${referredBy}`,
+              { headers: { Authorization: `Bearer ${API_TOKEN}` } }
+            );
+            if (langRes.data && langRes.data.language) {
+              refLang = langRes.data.language;
+            }
+          } catch (err) {
+            console.error('❌ Error getting referrer language:', err.message);
+          }
+
+          // Get the message in the referrer's language
+          let refMsg;
+          try {
+            const lang = require(`../../lang/${refLang}`);
+            refMsg = lang.referral.new_referral;
+          } catch (err) {
+            // Fallback to Russian if language file not found
+            const lang = require(`../../lang/ru`);
+            refMsg = lang.referral.new_referral;
+          }
+
+          // Send notification to referrer
           await ctx.telegram.sendMessage(referredBy, refMsg);
-        } catch (err) {
-          console.error('❌ Не удалось отправить уведомление рефереру:', err.message);
         }
       } catch (err) {
-        console.error('❌ Ошибка при регистрации реферала:', err.message);
+        console.error('❌ Error in referral registration:', err.message);
       }
     }
   }
