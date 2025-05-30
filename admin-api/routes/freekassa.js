@@ -104,7 +104,7 @@ router.post('/link', async (req, res) => {
   // Ensure amount is a number and has 2 decimal places
   const formattedAmount = Number(amount).toFixed(2);
   
-  // Signature format: MERCHANT_ID:AMOUNT:SECRET_WORD_1:ORDER_ID
+  // Signature format: merchant_id:amount:secret:order_id
   const signString = `${merchantId}:${formattedAmount}:${secretWord1}:${orderId}`;
   console.log('Generating signature with string:', signString);
   const signature = crypto.createHash('md5').update(signString).digest('hex');
@@ -117,9 +117,7 @@ router.post('/link', async (req, res) => {
     o: orderId,
     s: signature,
     currency: 'RUB',
-    i: '2', // Changed to payment system 2 (Card)
-    test: '1', // Test mode
-    lang: 'ru' // Added language parameter
+    test: '1' // Test mode
   });
   
   // Use main URL with test mode parameter
