@@ -13,9 +13,14 @@ const pool = new Pool({
 router.post('/callback', async (req, res) => {
   console.log('Received Freekassa callback headers:', req.headers);
   console.log('Received Freekassa callback body:', req.body);
-  console.log('Received Freekassa callback raw body:', req.rawBody);
   
-  // Freekassa sends form data
+  // Handle status check request
+  if (req.body.status_check === '1') {
+    console.log('Received status check request from Freekassa');
+    return res.send('YES');
+  }
+
+  // Handle actual payment notification
   const body = req.body;
   
   if (!body) {
@@ -28,7 +33,7 @@ router.post('/callback', async (req, res) => {
   const SIGN = body.SIGN;
   const SECRET_2 = process.env.FREEKASSA_SECRET_2;
 
-  console.log('Parsed callback data:', { MERCHANT_ORDER_ID, AMOUNT, SIGN });
+  console.log('Parsed payment notification data:', { MERCHANT_ORDER_ID, AMOUNT, SIGN });
 
   if (!SECRET_2) {
     console.error('Missing FREEKASSA_SECRET_2');
