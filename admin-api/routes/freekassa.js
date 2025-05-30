@@ -121,8 +121,8 @@ router.post('/link', async (req, res) => {
     test: '1' // Always use test mode for now
   });
   
-  // Always use test URL for now
-  const link = `https://test.freekassa.ru/?${params.toString()}`;
+  // Use main URL with test mode parameter
+  const link = `https://pay.freekassa.ru/?${params.toString()}`;
   console.log('Generated payment link:', link);
   
   return res.json({ link });
