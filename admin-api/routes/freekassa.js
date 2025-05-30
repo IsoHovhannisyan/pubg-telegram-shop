@@ -117,8 +117,9 @@ router.post('/link', async (req, res) => {
     o: orderId,
     s: signature,
     currency: 'RUB',
-    i: '1',
-    test: '1' // Always use test mode for now
+    i: '2', // Changed to payment system 2 (Card)
+    test: '1', // Test mode
+    lang: 'ru' // Added language parameter
   });
   
   // Use main URL with test mode parameter
