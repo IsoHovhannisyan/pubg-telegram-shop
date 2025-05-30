@@ -94,10 +94,15 @@ router.post('/link', async (req, res) => {
     return res.status(400).json({ error: 'Missing orderId or amount' });
   }
 
-  // Signature: m:oa:s:MERCHANT_ID:AMOUNT:SECRET_WORD_1:ORDER_ID
+  // Signature format: m:oa:s:MERCHANT_ID:AMOUNT:SECRET_WORD_1:ORDER_ID
   const signString = `${merchantId}:${amount}:${secretWord1}:${orderId}`;
+  console.log('Generating signature with string:', signString);
   const signature = crypto.createHash('md5').update(signString).digest('hex');
+  console.log('Generated signature:', signature);
+  
   const link = `https://pay.freekassa.ru/?m=${merchantId}&oa=${amount}&o=${orderId}&s=${signature}`;
+  console.log('Generated payment link:', link);
+  
   return res.json({ link });
 });
 
