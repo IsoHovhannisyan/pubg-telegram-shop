@@ -10,7 +10,9 @@ const pool = new Pool({
 });
 
 // Freekassa callback endpoint
-router.post('/freekassa/callback', async (req, res) => {
+router.post('/callback', async (req, res) => {
+  console.log('Received Freekassa callback:', req.body);
+  
   // Freekassa sends form data, not JSON
   let body = req.body;
   if (typeof body === 'string') {
@@ -20,11 +22,15 @@ router.post('/freekassa/callback', async (req, res) => {
   const { MERCHANT_ORDER_ID, AMOUNT, SIGN } = body;
   const SECRET_2 = process.env.FREEKASSA_SECRET_2;
 
+  console.log('Callback data:', { MERCHANT_ORDER_ID, AMOUNT, SIGN });
+
   if (!SECRET_2) {
+    console.error('Missing FREEKASSA_SECRET_2');
     return res.status(400).send('Payment verification failed: missing secret');
   }
 
   if (!MERCHANT_ORDER_ID || !AMOUNT || !SIGN) {
+    console.error('Missing required fields:', { MERCHANT_ORDER_ID, AMOUNT, SIGN });
     return res.status(400).send('Payment verification failed: missing required fields');
   }
 
@@ -34,7 +40,10 @@ router.post('/freekassa/callback', async (req, res) => {
     .update(`${MERCHANT_ORDER_ID}:${AMOUNT}:${SECRET_2}`)
     .digest('hex');
 
+  console.log('Signature check:', { received: SIGN, expected: expectedSign });
+
   if (SIGN !== expectedSign) {
+    console.error('Invalid signature');
     return res.status(403).send('Payment verification failed: invalid signature');
   }
 
@@ -43,14 +52,16 @@ router.post('/freekassa/callback', async (req, res) => {
     const result = await pool.query('SELECT * FROM orders WHERE id = $1', [MERCHANT_ORDER_ID]);
     const order = result.rows[0];
     if (!order) {
+      console.error('Order not found:', MERCHANT_ORDER_ID);
       return res.status(404).send('Order not found');
     }
     if (order.status === 'delivered' || order.status === 'error') {
+      console.log('Order already processed:', order.status);
       return res.send(`Order already ${order.status}`);
     }
     // Update order status
     await pool.query('UPDATE orders SET status = $1 WHERE id = $2', ['pending', MERCHANT_ORDER_ID]);
-    // TODO: Add your product delivery/activation logic here if needed
+    console.log('Order status updated to pending:', MERCHANT_ORDER_ID);
     res.setHeader('Content-Type', 'text/plain');
     return res.send('YES');
   } catch (err) {
@@ -60,7 +71,7 @@ router.post('/freekassa/callback', async (req, res) => {
 });
 
 // Freekassa payment link generator endpoint
-router.post('/freekassa/link', async (req, res) => {
+router.post('/link', async (req, res) => {
   const { orderId, amount } = req.body;
   const merchantId = process.env.FREEKASSA_MERCHANT_ID;
   const secretWord1 = process.env.FREEKASSA_SECRET_1;

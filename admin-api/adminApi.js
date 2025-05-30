@@ -127,7 +127,7 @@ app.get('/admin/stats', verifyToken, async (req, res) => {
 
 app.use('/admin', broadcastRoutes);
 
-app.use(freekassaRoutes);
+app.use('/freekassa', freekassaRoutes);
 
 // ✅ Լսել պորտ
 const PORT = process.env.ADMIN_API_PORT || 3001;
