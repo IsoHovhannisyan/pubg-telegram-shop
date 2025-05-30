@@ -103,7 +103,8 @@ router.post('/link', async (req, res) => {
   const formattedAmount = Number(amount).toFixed(2);
   
   // Signature format: MERCHANT_ID:AMOUNT:SECRET_WORD_1:ORDER_ID
-  const signString = `${merchantId}:${formattedAmount}:${secretWord1}:${orderId}`;
+  // Note: Using raw amount without formatting for signature
+  const signString = `${merchantId}:${amount}:${secretWord1}:${orderId}`;
   console.log('Generating signature with string:', signString);
   const signature = crypto.createHash('md5').update(signString).digest('hex');
   console.log('Generated signature:', signature);
@@ -111,7 +112,7 @@ router.post('/link', async (req, res) => {
   // Build payment link with properly encoded parameters
   const params = new URLSearchParams({
     m: merchantId,
-    oa: formattedAmount,
+    oa: amount, // Using raw amount in URL
     o: orderId,
     s: signature
   });
