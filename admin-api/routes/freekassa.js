@@ -11,9 +11,10 @@ const pool = new Pool({
 
 // Freekassa callback endpoint
 router.post('/callback', async (req, res) => {
+  // --- DEBUG LOG ---
   console.log('Received Freekassa callback headers:', req.headers);
   console.log('Received Freekassa callback body:', req.body);
-  
+
   // Handle status check request
   if (req.body.status_check === '1') {
     console.log('Received status check request from Freekassa');
@@ -22,37 +23,37 @@ router.post('/callback', async (req, res) => {
 
   // Handle actual payment notification
   const body = req.body;
-  
   if (!body) {
     console.error('No body received in callback');
     return res.status(400).send('No data received');
   }
 
-  const MERCHANT_ORDER_ID = body.MERCHANT_ORDER_ID;
+  // Extract required fields
+  const MERCHANT_ID = body.MERCHANT_ID;
   const AMOUNT = body.AMOUNT;
+  const MERCHANT_ORDER_ID = body.MERCHANT_ORDER_ID;
   const SIGN = body.SIGN;
   const SECRET_2 = process.env.FREEKASSA_SECRET_2;
-  const IS_TEST = body.IS_TEST === '1'; // Check if this is a test payment
 
-  console.log('Parsed payment notification data:', { MERCHANT_ORDER_ID, AMOUNT, SIGN, IS_TEST });
+  // --- DEBUG LOG ---
+  console.log('Parsed payment notification data:', { MERCHANT_ID, AMOUNT, MERCHANT_ORDER_ID, SIGN });
 
   if (!SECRET_2) {
     console.error('Missing FREEKASSA_SECRET_2');
     return res.status(400).send('Payment verification failed: missing secret');
   }
-
-  if (!MERCHANT_ORDER_ID || !AMOUNT || !SIGN) {
-    console.error('Missing required fields:', { MERCHANT_ORDER_ID, AMOUNT, SIGN });
+  if (!MERCHANT_ID || !AMOUNT || !MERCHANT_ORDER_ID || !SIGN) {
+    console.error('Missing required fields:', { MERCHANT_ID, AMOUNT, MERCHANT_ORDER_ID, SIGN });
     return res.status(400).send('Payment verification failed: missing required fields');
   }
 
-  // Signature check (see Freekassa docs for your version)
+  // Signature check for callback (see docs)
   const expectedSign = crypto
     .createHash('md5')
-    .update(`${MERCHANT_ORDER_ID}:${AMOUNT}:${SECRET_2}`)
+    .update(`${MERCHANT_ID}:${AMOUNT}:${SECRET_2}:${MERCHANT_ORDER_ID}`)
     .digest('hex');
-
-  console.log('Signature check:', { received: SIGN, expected: expectedSign });
+  // --- DEBUG LOG ---
+  console.log('Expected callback signature:', expectedSign);
 
   if (SIGN !== expectedSign) {
     console.error('Invalid signature');
@@ -87,7 +88,7 @@ router.post('/link', async (req, res) => {
   const { orderId, amount } = req.body;
   const merchantId = process.env.FREEKASSA_MERCHANT_ID;
   const secretWord1 = process.env.FREEKASSA_SECRET_1;
-  const isTestMode = process.env.FREEKASSA_TEST_MODE === 'true';
+  const currency = 'RUB'; // Must match merchant settings
 
   if (!merchantId || !secretWord1) {
     console.error('Missing Freekassa credentials:', { 
@@ -103,27 +104,30 @@ router.post('/link', async (req, res) => {
 
   // Ensure amount is a number and has 2 decimal places
   const formattedAmount = Number(amount).toFixed(2);
-  
-  // Signature format: merchant_id:amount:secret:order_id
-  const signString = `${merchantId}:${formattedAmount}:${secretWord1}:${orderId}`;
-  console.log('Generating signature with string:', signString);
+
+  // Signature format: merchant_id:amount:secret_word_1:currency:order_id
+  const signString = `${merchantId}:${formattedAmount}:${secretWord1}:${currency}:${orderId}`;
+  // --- DEBUG LOG ---
+  console.log('Signature string for payment link:', signString);
   const signature = crypto.createHash('md5').update(signString).digest('hex');
-  console.log('Generated signature:', signature);
-  
+  // --- DEBUG LOG ---
+  console.log('Generated signature for payment link:', signature);
+
   // Build payment link with properly encoded parameters
   const params = new URLSearchParams({
     m: merchantId,
     oa: formattedAmount,
     o: orderId,
     s: signature,
-    currency: 'RUB',
-    test: '1' // Test mode
+    currency: currency,
+    test: '1' // Enable test mode
   });
-  
-  // Use main URL with test mode parameter
-  const link = `https://pay.freekassa.ru/?${params.toString()}`;
+
+  // Use the correct Freekassa payment URL (per docs)
+  const link = `https://pay.fk.money/?${params.toString()}`;
+  // --- DEBUG LOG ---
   console.log('Generated payment link:', link);
-  
+
   return res.json({ link });
 });
 
