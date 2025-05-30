@@ -88,19 +88,35 @@ router.post('/link', async (req, res) => {
   const secretWord1 = process.env.FREEKASSA_SECRET_1;
 
   if (!merchantId || !secretWord1) {
+    console.error('Missing Freekassa credentials:', { 
+      hasMerchantId: !!merchantId, 
+      hasSecretWord: !!secretWord1 
+    });
     return res.status(500).json({ error: 'Freekassa merchant credentials not set' });
   }
   if (!orderId || !amount) {
+    console.error('Missing required parameters:', { orderId, amount });
     return res.status(400).json({ error: 'Missing orderId or amount' });
   }
 
-  // Signature format: m:oa:s:MERCHANT_ID:AMOUNT:SECRET_WORD_1:ORDER_ID
-  const signString = `${merchantId}:${amount}:${secretWord1}:${orderId}`;
+  // Ensure amount is a number and has 2 decimal places
+  const formattedAmount = Number(amount).toFixed(2);
+  
+  // Signature format: MERCHANT_ID:AMOUNT:SECRET_WORD_1:ORDER_ID
+  const signString = `${merchantId}:${formattedAmount}:${secretWord1}:${orderId}`;
   console.log('Generating signature with string:', signString);
   const signature = crypto.createHash('md5').update(signString).digest('hex');
   console.log('Generated signature:', signature);
   
-  const link = `https://pay.freekassa.ru/?m=${merchantId}&oa=${amount}&o=${orderId}&s=${signature}`;
+  // Build payment link with properly encoded parameters
+  const params = new URLSearchParams({
+    m: merchantId,
+    oa: formattedAmount,
+    o: orderId,
+    s: signature
+  });
+  
+  const link = `https://pay.freekassa.ru/?${params.toString()}`;
   console.log('Generated payment link:', link);
   
   return res.json({ link });
