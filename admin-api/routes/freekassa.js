@@ -116,14 +116,13 @@ router.post('/link', async (req, res) => {
     oa: formattedAmount,
     o: orderId,
     s: signature,
-    currency: 'RUB', // Add currency parameter
-    i: '1', // Set payment system parameter to 1 (required)
-    test: isTestMode ? '1' : '0' // Add test mode parameter
+    currency: 'RUB',
+    i: '1',
+    test: '1' // Always use test mode for now
   });
   
-  // Use test mode URL if in test mode
-  const baseUrl = isTestMode ? 'https://test.freekassa.ru' : 'https://pay.freekassa.ru';
-  const link = `${baseUrl}/?${params.toString()}`;
+  // Always use test URL for now
+  const link = `https://test.freekassa.ru/?${params.toString()}`;
   console.log('Generated payment link:', link);
   
   return res.json({ link });
