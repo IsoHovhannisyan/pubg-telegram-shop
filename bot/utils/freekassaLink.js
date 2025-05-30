@@ -1,21 +1,20 @@
-const crypto = require('crypto');
+const axios = require('axios');
 
-function generateFreekassaLink(orderId, amount) {
-  // DEMO MODE: Use demo-pay link for visual confirmation
-  if (process.env.DEMO_MODE === 'true') {
-    // Change this URL if your Vercel deployment URL is different
-    return `https://freekassa-vercel.vercel.app/api/demo-pay?orderId=${orderId}`;
+/**
+ * Requests a Freekassa payment link from the admin API.
+ * @param {string|number} orderId - The order ID
+ * @param {number} amount - The payment amount
+ * @returns {Promise<string>} - The payment link
+ */
+async function generateFreekassaLink(orderId, amount) {
+  const API_URL = process.env.API_URL || 'http://localhost:3001';
+  try {
+    const res = await axios.post(`${API_URL}/freekassa/link`, { orderId, amount });
+    return res.data.link;
+  } catch (err) {
+    console.error('Error requesting Freekassa link from API:', err.message);
+    return 'Ошибка генерации ссылки оплаты';
   }
-
-  // PRODUCTION: Use real Freekassa link
-  const merchantId = process.env.FREEKASSA_MERCHANT_ID;
-  const secretWord = process.env.FREEKASSA_SECRET_1;
-  const str = `${merchantId}:${amount}:${secretWord}:${orderId}`;
-  const signature = crypto.createHash('md5').update(str).digest('hex');
-  return `https://pay.freekassa.ru/?m=${merchantId}&oa=${amount}&o=${orderId}&s=${signature}`;
 }
 
-module.exports = generateFreekassaLink;
-
-
-
+module.exports = generateFreekassaLink; 

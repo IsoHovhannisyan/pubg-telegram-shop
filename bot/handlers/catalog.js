@@ -11,7 +11,6 @@ const { getPubgNickname } = require('./cart');
 const registerOrder = require('./orderHandler');
 const getAvailableProducts = require('../utils/getAvailableProducts');
 const checkUCQuantities = require('../utils/checkUCQuantities');
-const generateFreekassaLink = require('../utils/freekassaLink');
 
 async function getLang(ctx) {
   const res = await db.query('SELECT language FROM users WHERE telegram_id = $1', [ctx.from.id]);

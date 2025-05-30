@@ -163,7 +163,7 @@ async function registerOrder(ctx, pubgId, items, nickname) {
     if (autoItems.length > 0 && autoOrder) {
       const ucSum = getTotal(autoItems);
       const ucList = autoItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
-      const payUrl = generateFreekassaLink(autoOrder.id, ucSum);
+      const payUrl = await generateFreekassaLink(autoOrder.id, ucSum);
 
       finalMessage += `💳 <b>Авто-доставка (UC):</b>\n${ucList}\n`;
       finalMessage += `💰 <b>Сумма:</b> ${ucSum} ₽\n`;

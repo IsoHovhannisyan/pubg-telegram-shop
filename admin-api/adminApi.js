@@ -33,6 +33,8 @@ const broadcastRoutes = require('./routes/broadcast');
 
 const adminRoutes = require('./routes/admin');
 
+const freekassaRoutes = require('./routes/freekassa');
+
 app.use('/admin', authRoutes);
 app.use("/admin", setupAdminRoute); // ✅ Login route
 app.use('/admin/products', productRoutes);   // Admin համար՝ POST, կարգավորում
@@ -124,6 +126,8 @@ app.get('/admin/stats', verifyToken, async (req, res) => {
 });
 
 app.use('/admin', broadcastRoutes);
+
+app.use(freekassaRoutes);
 
 // ✅ Լսել պորտ
 const PORT = process.env.ADMIN_API_PORT || 3001;
