@@ -21,14 +21,13 @@ async function getPubgNickname(pubgId) {
   try {
     const response = await axios({
       method: 'post',
-      url: 'https://synet.syntex-dev.ru/charac',
+      url: (process.env.API_URL || 'http://localhost:3001') + '/syNet/charac',
       headers: {
-        Authorization: `Bearer ${process.env.CHARACTER_API_TOKEN}`,
         'Content-Type': 'application/json',
         'Accept': '*/*'
       },
       data: { playerId: pubgId.toString() },
-      httpsAgent // Use the custom HTTPS agent
+      httpsAgent // Use the custom HTTPS agent if needed
     });
 
     const data = response.data;
