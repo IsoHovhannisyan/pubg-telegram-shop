@@ -13,5 +13,20 @@
     ],
     "id": null,
     "costumes": []
+  },
+  "5590597596": {
+    "uc": [],
+    "popularity": [
+      {
+        "id": 13,
+        "title": "Lamborghini Aventador (Белый)",
+        "price": 11900,
+        "type": "manual",
+        "qty": 3
+      }
+    ],
+    "cars": [],
+    "id": null,
+    "costumes": []
   }
 }
