@@ -7,6 +7,8 @@ require('dotenv').config();
 // require('../admin-api/adminApi');
 const express = require('express');
 const bodyParser = require('body-parser');
+const app = express();
+app.use(bodyParser.json());
 
 const startHandler = require('./handlers/start');
 const catalog = require('./handlers/catalog');
@@ -173,9 +175,6 @@ if (useWebhook) {
   bot.launch();
   console.log('✅ Бот успешно запущен с мультиязычным SHOP-меню (long polling)');
 }
-
-const app = express();
-app.use(bodyParser.json());
 
 const BOT_API_SECRET = process.env.BOT_API_SECRET;
 
