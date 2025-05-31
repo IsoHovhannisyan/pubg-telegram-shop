@@ -33,7 +33,7 @@ module.exports = {
     to_cart: '🧺 Go to car'
   },
   cart: {
-    empty: "🧺 Your cart is empty.\n📦 Please choose a UC package:",
+    empty: "🧺 Your cart is empty.\n🛍 Go to the shop:",
     header: "🛒 Your cart:",
     no_id: "not specified",
     status: "Status: waiting for confirmation",
