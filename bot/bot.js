@@ -161,9 +161,18 @@ bot.on('text', async (ctx) => {
   }
 });
 
-// ▶️ Запуск бота
-bot.launch();
-console.log('✅ Бот успешно запущен с мультиязычным SHOP-меню');
+// ▶️ Запуск бота (webhook support)
+const useWebhook = !!process.env.BOT_WEBHOOK_URL;
+if (useWebhook) {
+  const webhookPath = '/webhook';
+  const webhookUrl = process.env.BOT_WEBHOOK_URL + webhookPath;
+  bot.telegram.setWebhook(webhookUrl);
+  app.use(bot.webhookCallback(webhookPath));
+  console.log('✅ Бот запущен в режиме webhook:', webhookUrl);
+} else {
+  bot.launch();
+  console.log('✅ Бот успешно запущен с мультиязычным SHOP-меню (long polling)');
+}
 
 const app = express();
 app.use(bodyParser.json());
