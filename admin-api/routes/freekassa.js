@@ -74,14 +74,88 @@ router.post('/callback', async (req, res) => {
       console.log('Order already processed:', order.status);
       return res.send(`Order already ${order.status}`);
     }
+
+    const prevStatus = order.status;
+    const products = Array.isArray(order.products) ? order.products : JSON.parse(order.products || '[]');
+
     // Update order status
     await pool.query('UPDATE orders SET status = $1 WHERE id = $2', ['pending', MERCHANT_ORDER_ID]);
     console.log('Order status updated to pending:', MERCHANT_ORDER_ID);
 
-    // Fetch order again to get user_id and products
+    // --- STOCK RESERVATION/RESTORATION LOGIC ---
+    // 1. Decrease stock when status changes from unpaid to any other status (except delivered)
+    if (prevStatus === 'unpaid' && order.status !== 'unpaid' && order.status !== 'delivered') {
+      for (const p of products) {
+        await pool.query(
+          'UPDATE products SET stock = stock - $1 WHERE id = $2',
+          [p.qty, p.id]
+        );
+        await pool.query(
+          `INSERT INTO stock_history (product_id, quantity, type, note)
+           VALUES ($1, $2, $3, $4)`,
+          [p.id, -p.qty, 'order', `Order #${MERCHANT_ORDER_ID} status changed from unpaid to pending via Freekassa`]
+        );
+      }
+    }
+    // 2. Restore stock if moving to 'error' from any other status
+    if (order.status === 'error' && prevStatus !== 'error') {
+      for (const p of products) {
+        await pool.query(
+          'UPDATE products SET stock = stock + $1 WHERE id = $2',
+          [p.qty, p.id]
+        );
+        await pool.query(
+          `INSERT INTO stock_history (product_id, quantity, type, note)
+           VALUES ($1, $2, $3, $4)`,
+          [p.id, p.qty, 'order', `Order #${MERCHANT_ORDER_ID} stock restored due to error status via Freekassa`]
+        );
+      }
+    }
+    // 3. Decrease stock again if moving from 'error' to any other status
+    if (prevStatus === 'error' && order.status !== 'error') {
+      for (const p of products) {
+        await pool.query(
+          'UPDATE products SET stock = stock - $1 WHERE id = $2',
+          [p.qty, p.id]
+        );
+        await pool.query(
+          `INSERT INTO stock_history (product_id, quantity, type, note)
+           VALUES ($1, $2, $3, $4)`,
+          [p.id, -p.qty, 'order', `Order #${MERCHANT_ORDER_ID} stock decreased after error resolution via Freekassa`]
+        );
+      }
+    }
+    // --- END STOCK LOGIC ---
+
+    // --- REFERRAL POINTS LOGIC ---
+    // Award referral points if previous status is 'unpaid' and new status is NOT 'unpaid'
+    if (prevStatus === 'unpaid' && order.status !== 'unpaid') {
+      try {
+        // Find direct (level 1) referrer
+        const ref1Res = await pool.query('SELECT referred_by FROM referrals WHERE user_id = $1 AND level = 1', [order.user_id]);
+        if (ref1Res.rows.length > 0 && ref1Res.rows[0].referred_by) {
+          const ref1 = ref1Res.rows[0].referred_by;
+          const orderTotal = products.reduce((sum, p) => sum + (p.price * p.qty), 0);
+          const points1 = Math.round(orderTotal * 0.03); // 3% for level 1
+          await pool.query('UPDATE users SET referral_points = COALESCE(referral_points,0) + $1 WHERE telegram_id = $2', [points1, ref1]);
+        }
+        // Find level 2 (grandparent) referrer
+        const ref2Res = await pool.query('SELECT referred_by FROM referrals WHERE user_id = $1 AND level = 2', [order.user_id]);
+        if (ref2Res.rows.length > 0 && ref2Res.rows[0].referred_by) {
+          const ref2 = ref2Res.rows[0].referred_by;
+          const orderTotal = products.reduce((sum, p) => sum + (p.price * p.qty), 0);
+          const points2 = Math.round(orderTotal * 0.01); // 1% for level 2
+          await pool.query('UPDATE users SET referral_points = COALESCE(referral_points,0) + $1 WHERE telegram_id = $2', [points2, ref2]);
+        }
+      } catch (err) {
+        console.error('❌ Ошибка начисления реферальных баллов:', err.message);
+      }
+    }
+    // --- END REFERRAL POINTS LOGIC ---
+
+    // Fetch order again to get user_id and products for notifications
     const refreshedResult = await pool.query('SELECT * FROM orders WHERE id = $1', [MERCHANT_ORDER_ID]);
     const refreshedOrder = refreshedResult.rows[0];
-    const products = Array.isArray(refreshedOrder.products) ? refreshedOrder.products : JSON.parse(refreshedOrder.products || '[]');
 
     // 1. Notify manager (reuse notification logic from orders.js)
     let userInfo = null;
