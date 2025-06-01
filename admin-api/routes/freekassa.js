@@ -83,8 +83,8 @@ router.post('/callback', async (req, res) => {
     console.log('Order status updated to pending:', MERCHANT_ORDER_ID);
 
     // --- STOCK RESERVATION/RESTORATION LOGIC ---
-    // 1. Decrease stock when status changes from unpaid to any other status (except delivered)
-    if (prevStatus === 'unpaid' && order.status !== 'unpaid' && order.status !== 'delivered') {
+    // 1. Decrease stock when status changes from unpaid to pending
+    if (prevStatus === 'unpaid') {
       for (const p of products) {
         await pool.query(
           'UPDATE products SET stock = stock - $1 WHERE id = $2',
@@ -93,7 +93,7 @@ router.post('/callback', async (req, res) => {
         await pool.query(
           `INSERT INTO stock_history (product_id, quantity, type, note)
            VALUES ($1, $2, $3, $4)`,
-          [p.id, -p.qty, 'order', `Order #${MERCHANT_ORDER_ID} status changed from unpaid to pending via Freekassa`]
+          [p.id, -p.qty, 'order', `Order #${MERCHANT_ORDER_ID} stock decreased after Freekassa payment`]
         );
       }
     }
@@ -128,8 +128,8 @@ router.post('/callback', async (req, res) => {
     // --- END STOCK LOGIC ---
 
     // --- REFERRAL POINTS LOGIC ---
-    // Award referral points if previous status is 'unpaid' and new status is NOT 'unpaid'
-    if (prevStatus === 'unpaid' && order.status !== 'unpaid') {
+    // Award referral points if previous status is 'unpaid'
+    if (prevStatus === 'unpaid') {
       try {
         // Find direct (level 1) referrer
         const ref1Res = await pool.query('SELECT referred_by FROM referrals WHERE user_id = $1 AND level = 1', [order.user_id]);
