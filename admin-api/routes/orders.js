@@ -177,8 +177,8 @@ router.patch('/:id', verifyToken, async (req, res) => {
     }
 
     // --- STOCK RESERVATION/RESTORATION LOGIC ---
-    // 1. Decrease stock ONLY when status changes to 'delivered'
-    if (status === 'delivered' && prevStatus !== 'delivered') {
+    // 1. Decrease stock when status changes from unpaid to any other status (except delivered)
+    if (prevStatus === 'unpaid' && status !== 'unpaid' && status !== 'delivered') {
       for (const p of products) {
         await db.query(
           'UPDATE products SET stock = stock - $1 WHERE id = $2',
@@ -187,12 +187,12 @@ router.patch('/:id', verifyToken, async (req, res) => {
         await db.query(
           `INSERT INTO stock_history (product_id, quantity, type, note)
            VALUES ($1, $2, $3, $4)`,
-          [p.id, -p.qty, 'order', `Order #${id} delivered`]
+          [p.id, -p.qty, 'order', `Order #${id} status changed from unpaid to ${status}`]
         );
       }
     }
-    // 2. Restore stock if moving to 'error' or 'canceled' from any other status
-    if ((status === 'error' || status === 'canceled') && prevStatus !== 'error' && prevStatus !== 'canceled') {
+    // 2. Restore stock if moving to 'error' from any other status
+    if (status === 'error' && prevStatus !== 'error') {
       for (const p of products) {
         await db.query(
           'UPDATE products SET stock = stock + $1 WHERE id = $2',
@@ -201,7 +201,21 @@ router.patch('/:id', verifyToken, async (req, res) => {
         await db.query(
           `INSERT INTO stock_history (product_id, quantity, type, note)
            VALUES ($1, $2, $3, $4)`,
-          [p.id, p.qty, 'order', `Order #${id} restored (${status})`]
+          [p.id, p.qty, 'order', `Order #${id} stock restored due to error status`]
+        );
+      }
+    }
+    // 3. Decrease stock again if moving from 'error' to any other status
+    if (prevStatus === 'error' && status !== 'error') {
+      for (const p of products) {
+        await db.query(
+          'UPDATE products SET stock = stock - $1 WHERE id = $2',
+          [p.qty, p.id]
+        );
+        await db.query(
+          `INSERT INTO stock_history (product_id, quantity, type, note)
+           VALUES ($1, $2, $3, $4)`,
+          [p.id, -p.qty, 'order', `Order #${id} stock decreased after error resolution`]
         );
       }
     }

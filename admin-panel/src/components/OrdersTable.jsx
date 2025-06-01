@@ -110,65 +110,6 @@ export default function OrdersTable() {
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }
       });
 
-      // Decrease stock if marking as paid (unpaid -> pending) and not already decreased
-      if (status === 'pending' && selectedOrder.status === 'unpaid' && !stockDecreasedOrders.has(orderId)) {
-        const prods = Array.isArray(selectedOrder.products)
-          ? selectedOrder.products
-          : JSON.parse(selectedOrder.products || "[]");
-        for (const p of prods) {
-          try {
-            await axios.post(
-              `${API_URL}/admin/stock/update`,
-              { product_id: p.id, quantity: p.qty },
-              { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }
-            );
-          } catch (err) {
-            console.error(`Ошибка при уменьшении стока для товара ${p.id}:`, err);
-          }
-        }
-        setStockDecreasedOrders(new Set([...stockDecreasedOrders, orderId]));
-      }
-
-      // Decrease stock if marking as delivered and not already decreased
-      if (status === 'delivered' && !stockDecreasedOrders.has(orderId)) {
-        const prods = Array.isArray(selectedOrder.products)
-          ? selectedOrder.products
-          : JSON.parse(selectedOrder.products || "[]");
-        for (const p of prods) {
-          try {
-            await axios.post(
-              `${API_URL}/admin/stock/update`,
-              { product_id: p.id, quantity: p.qty },
-              { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }
-            );
-          } catch (err) {
-            console.error(`Ошибка при уменьшении стока для товара ${p.id}:`, err);
-          }
-        }
-        setStockDecreasedOrders(new Set([...stockDecreasedOrders, orderId]));
-      }
-
-      // Restore stock if marking as error and it was previously decreased
-      if (status === 'error' && stockDecreasedOrders.has(orderId)) {
-        const prods = Array.isArray(selectedOrder.products)
-          ? selectedOrder.products
-          : JSON.parse(selectedOrder.products || "[]");
-        for (const p of prods) {
-          try {
-            await axios.post(
-              `${API_URL}/admin/stock/restore`,
-              { product_id: p.id, quantity: p.qty },
-              { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }
-            );
-          } catch (err) {
-            console.error(`Ошибка при восстановлении стока для товара ${p.id}:`, err);
-          }
-        }
-        const newSet = new Set(stockDecreasedOrders);
-        newSet.delete(orderId);
-        setStockDecreasedOrders(newSet);
-      }
-
       // Send delivery notification if status is 'delivered'
       if (status === 'delivered') {
         const order = orders.find(o => o.id === orderId);
