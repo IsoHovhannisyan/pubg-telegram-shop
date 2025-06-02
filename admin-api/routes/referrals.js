@@ -145,11 +145,25 @@ router.post("/referrals", verifyToken, async (req, res) => {
     return res.status(400).json({ error: "user_id and referred_by are required" });
   }
   try {
-    // Check if referral already exists
-    const exists = await db.query('SELECT 1 FROM referrals WHERE user_id = $1', [user_id]);
+    // Check if referral already exists for this user and level
+    const exists = await db.query(
+      'SELECT referred_by FROM referrals WHERE user_id = $1 AND level = $2',
+      [user_id, level || 1]
+    );
     if (exists.rowCount === 0) {
-      await db.query('INSERT INTO referrals (user_id, referred_by, level) VALUES ($1, $2, $3)', [user_id, referred_by, level || 1]);
+      // Create new referral
+      await db.query(
+        'INSERT INTO referrals (user_id, referred_by, level) VALUES ($1, $2, $3)',
+        [user_id, referred_by, level || 1]
+      );
       return res.json({ success: true, created: true });
+    } else if (exists.rows[0].referred_by !== referred_by) {
+      // Update existing referral with new referrer
+      await db.query(
+        'UPDATE referrals SET referred_by = $1 WHERE user_id = $2 AND level = $3',
+        [referred_by, user_id, level || 1]
+      );
+      return res.json({ success: true, created: false, updated: true });
     } else {
       return res.json({ success: true, created: false });
     }
@@ -163,11 +177,11 @@ router.post("/referrals", verifyToken, async (req, res) => {
 router.get('/referrals/user/:userId', verifyToken, async (req, res) => {
   const { userId } = req.params;
   try {
-    const result = await db.query('SELECT referred_by FROM referrals WHERE user_id = $1 ORDER BY level ASC LIMIT 1', [userId]);
+    const result = await db.query('SELECT referred_by, level FROM referrals WHERE user_id = $1 ORDER BY level ASC', [userId]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'No referrer found' });
     }
-    res.json({ referred_by: result.rows[0].referred_by });
+    res.json(result.rows);
   } catch (err) {
     console.error('❌ Error fetching referrer:', err.message);
     res.status(500).json({ error: 'Database error' });
