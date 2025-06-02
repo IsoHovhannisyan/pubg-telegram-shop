@@ -113,7 +113,7 @@ router.get("/referrals/:userId", verifyToken, async (req, res) => {
       LEFT JOIN users u ON r.user_id = u.telegram_id
       WHERE r.referred_by = $1
     `, [userId]);
-    // L2 referrals
+    // L2 referrals (exclude users who are already L1 referrals for this referrer)
     const l2 = await db.query(`
       SELECT 
         r.user_id,
@@ -128,6 +128,7 @@ router.get("/referrals/:userId", verifyToken, async (req, res) => {
       FROM referrals r
       LEFT JOIN users u ON r.user_id = u.telegram_id
       WHERE r.referred_by IN (SELECT user_id FROM referrals WHERE referred_by = $1)
+        AND r.user_id NOT IN (SELECT user_id FROM referrals WHERE referred_by = $1)
     `, [userId]);
     const referrals = [...l1.rows, ...l2.rows];
     referrals.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -138,35 +139,28 @@ router.get("/referrals/:userId", verifyToken, async (req, res) => {
   }
 });
 
-// POST: Register a new referral if not already exists
+// POST: Register a new referral if not already exists (user can only ever be referred once)
 router.post("/referrals", verifyToken, async (req, res) => {
   const { user_id, referred_by, level } = req.body;
   if (!user_id || !referred_by) {
     return res.status(400).json({ error: "user_id and referred_by are required" });
   }
   try {
-    // Check if referral already exists for this user and level
+    // Check if user has ever been referred (at any level)
     const exists = await db.query(
-      'SELECT referred_by FROM referrals WHERE user_id = $1 AND level = $2',
-      [user_id, level || 1]
+      'SELECT 1 FROM referrals WHERE user_id = $1',
+      [user_id]
     );
-    if (exists.rowCount === 0) {
-      // Create new referral
-      await db.query(
-        'INSERT INTO referrals (user_id, referred_by, level) VALUES ($1, $2, $3)',
-        [user_id, referred_by, level || 1]
-      );
-      return res.json({ success: true, created: true });
-    } else if (exists.rows[0].referred_by !== referred_by) {
-      // Update existing referral with new referrer
-      await db.query(
-        'UPDATE referrals SET referred_by = $1 WHERE user_id = $2 AND level = $3',
-        [referred_by, user_id, level || 1]
-      );
-      return res.json({ success: true, created: false, updated: true });
-    } else {
-      return res.json({ success: true, created: false });
+    if (exists.rowCount > 0) {
+      // User already has a referrer, do not add or update
+      return res.json({ success: true, created: false, alreadyReferred: true });
     }
+    // Create new referral (first and only time)
+    await db.query(
+      'INSERT INTO referrals (user_id, referred_by, level) VALUES ($1, $2, $3)',
+      [user_id, referred_by, level || 1]
+    );
+    return res.json({ success: true, created: true });
   } catch (err) {
     console.error("❌ Ошибка при создании реферала:", err);
     res.status(500).json({ error: "Ошибка создания реферала" });
