@@ -1,5 +1,6 @@
 const axios = require('axios');
 require('dotenv').config();
+const { Markup } = require('telegraf');
 
 const generateFreekassaLink = require('../utils/freekassaLink');
 
@@ -163,27 +164,24 @@ async function registerOrder(ctx, pubgId, items, nickname) {
     if (autoItems.length > 0 && autoOrder) {
       const ucSum = getTotal(autoItems);
       const ucList = autoItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
-      const payUrl = await generateFreekassaLink(autoOrder.id, ucSum);
+      const payUrl = `https://myshop.ru/pay/${autoOrder.id}?amount=${ucSum}`;
 
       finalMessage += `💳 <b>Авто-доставка (UC):</b>\n${ucList}\n`;
       finalMessage += `💰 <b>Сумма:</b> ${ucSum} ₽\n`;
       finalMessage += `📦 <b>Статус:</b> ${getStatusLabel('unpaid')}\n`;
-      finalMessage += `🔗 <b>Оплатите заказ по ссылке:</b>\n${payUrl}\n`;
       finalMessage += `━━━━━━━━━━━━━━━━━━━━\n`;
+
+      // Send payment button instead of raw link
+      await ctx.replyWithHTML(
+        finalMessage + 'Для оплаты нажмите на кнопку ниже:',
+        Markup.inlineKeyboard([
+          [Markup.button.url('💳 Оплатить', payUrl)]
+        ])
+      );
+    } else {
+      // Send the final message if no autoItems
+      await ctx.replyWithHTML(finalMessage);
     }
-
-    if (manualItems.length > 0 && manualOrder) {
-      const manualList = manualItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
-      const manualSum = manualItems.reduce((sum, i) => sum + (i.price * i.qty), 0);
-
-      finalMessage += `🧍 <b>Ручная доставка:</b>\n${manualList}\n`;
-      finalMessage += `💰 <b>Сумма:</b> ${manualSum} ₽\n`;
-      finalMessage += `📦 <b>Статус:</b> ${getStatusLabel('pending')}\n`;
-      finalMessage += `📞 <i>Менеджер скоро свяжется с вами в Telegram</i>\n`;
-    }
-
-    // Send the final message
-    await ctx.replyWithHTML(finalMessage);
 
     // Notify managers if needed
     if (manualItems.length > 0 && manualOrder) {
