@@ -37,6 +37,8 @@ const freekassaRoutes = require('./routes/freekassa');
 
 const syNetRoutes = require('./routes/synet');
 
+const payRoutes = require('./routes/pay');
+
 app.use('/admin', authRoutes);
 app.use("/admin", setupAdminRoute); // ✅ Login route
 app.use('/admin/products', productRoutes);   // Admin համար՝ POST, կարգավորում
@@ -132,6 +134,8 @@ app.use('/admin', broadcastRoutes);
 app.use('/freekassa', freekassaRoutes);
 
 app.use('/syNet', syNetRoutes);
+
+app.use('/', payRoutes);
 
 // ✅ Լսել պորտ
 const PORT = process.env.ADMIN_API_PORT || 3001;
