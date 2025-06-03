@@ -238,6 +238,21 @@ router.post('/callback', async (req, res) => {
           console.error(`❌ Failed to send paid manual order notification to manager ${managerId}:`, err.message);
         }
       }
+      // --- Notify user about paid manual products ---
+      if (refreshedOrder.user_id) {
+        const userManualMsg =
+          `✅ <b>Оплата получена!</b>\n\n` +
+          `🎮 PUBG ID: <code>${refreshedOrder.pubg_id}</code>\n` +
+          `${refreshedOrder.nickname ? `👤 Никнейм: ${refreshedOrder.nickname}\n` : ''}` +
+          `\n📦 <b>Ручная доставка:</b>\n${itemsText}\n` +
+          `💰 <b>Сумма:</b> ${total} ₽\n` +
+          `\n⏳ Ваш заказ принят в обработку. После проверки с вами свяжется менеджер для передачи товаров.`;
+        try {
+          await bot.telegram.sendMessage(refreshedOrder.user_id, userManualMsg, { parse_mode: 'HTML' });
+        } catch (err) {
+          console.error(`❌ Failed to send paid manual order confirmation to user ${refreshedOrder.user_id}:`, err.message);
+        }
+      }
     }
 
     // 2. Notify user
