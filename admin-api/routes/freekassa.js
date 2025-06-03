@@ -257,32 +257,32 @@ router.post('/callback', async (req, res) => {
           console.error(`❌ Failed to send paid manual order confirmation to user ${refreshedOrder.user_id}:`, err.message);
         }
       }
-      // --- NEW: Also check for other unpaid manual orders for this user and PUBG ID ---
-      if (refreshedOrder.user_id && refreshedOrder.pubg_id) {
-        const otherManualOrdersRes = await pool.query(
-          `SELECT * FROM orders WHERE user_id = $1 AND pubg_id = $2 AND status = 'unpaid' AND id != $3`,
-          [refreshedOrder.user_id, refreshedOrder.pubg_id, refreshedOrder.id]
-        );
-        for (const manualOrder of otherManualOrdersRes.rows) {
-          const manualProducts = Array.isArray(manualOrder.products) ? manualOrder.products : JSON.parse(manualOrder.products || '[]');
-          const filteredManualProducts = manualProducts.filter(p => manualCategories.includes(p.category));
-          if (filteredManualProducts.length > 0) {
-            const itemsText = filteredManualProducts.map(p =>
-              `▫️ ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
-            ).join('\n');
-            const total = filteredManualProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-            const userManualMsg =
-              `✅ <b>Оплата получена!</b>\n\n` +
-              `🎮 PUBG ID: <code>${manualOrder.pubg_id}</code>\n` +
-              `${manualOrder.nickname ? `👤 Никнейм: ${manualOrder.nickname}\n` : ''}` +
-              `\n📦 <b>Ручная доставка:</b>\n${itemsText}\n` +
-              `💰 <b>Сумма:</b> ${total} ₽\n` +
-              `\n⏳ Ваш заказ принят в обработку. После проверки с вами свяжется менеджер для передачи товаров.`;
-            try {
-              await bot.telegram.sendMessage(manualOrder.user_id, userManualMsg, { parse_mode: 'HTML' });
-            } catch (err) {
-              console.error(`❌ Failed to send paid manual order confirmation to user ${manualOrder.user_id}:`, err.message);
-            }
+    }
+    // --- Always check for other unpaid manual orders for this user and PUBG ID ---
+    if (refreshedOrder.user_id && refreshedOrder.pubg_id) {
+      const otherManualOrdersRes = await pool.query(
+        `SELECT * FROM orders WHERE user_id = $1 AND pubg_id = $2 AND status = 'unpaid' AND id != $3`,
+        [refreshedOrder.user_id, refreshedOrder.pubg_id, refreshedOrder.id]
+      );
+      for (const manualOrder of otherManualOrdersRes.rows) {
+        const manualProducts = Array.isArray(manualOrder.products) ? manualOrder.products : JSON.parse(manualOrder.products || '[]');
+        const filteredManualProducts = manualProducts.filter(p => manualCategories.includes(p.category));
+        if (filteredManualProducts.length > 0) {
+          const itemsText = filteredManualProducts.map(p =>
+            `▫️ ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
+          ).join('\n');
+          const total = filteredManualProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
+          const userManualMsg =
+            `✅ <b>Оплата получена!</b>\n\n` +
+            `🎮 PUBG ID: <code>${manualOrder.pubg_id}</code>\n` +
+            `${manualOrder.nickname ? `👤 Никнейм: ${manualOrder.nickname}\n` : ''}` +
+            `\n📦 <b>Ручная доставка:</b>\n${itemsText}\n` +
+            `💰 <b>Сумма:</b> ${total} ₽\n` +
+            `\n⏳ Ваш заказ принят в обработку. После проверки с вами свяжется менеджер для передачи товаров.`;
+          try {
+            await bot.telegram.sendMessage(manualOrder.user_id, userManualMsg, { parse_mode: 'HTML' });
+          } catch (err) {
+            console.error(`❌ Failed to send paid manual order confirmation to user ${manualOrder.user_id}:`, err.message);
           }
         }
       }
