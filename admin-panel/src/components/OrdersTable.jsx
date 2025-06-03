@@ -183,7 +183,7 @@ export default function OrdersTable() {
     
     return products.map(p => {
       const productName = getProductNameById(p.id);
-      const type = p.type === 'auto' ? '(по входу)' : 
+      const type = p.type === 'auto' ? '(по ID)' : 
                   p.type === 'manual' ? '(по ID)' :
                   p.type === 'costume' ? '(X-Костюм)' : '';
       return `${productName} × ${p.qty} ${type}`;
