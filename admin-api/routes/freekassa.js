@@ -197,8 +197,8 @@ router.post('/callback', async (req, res) => {
         const manualProducts = relatedProducts.filter(p => manualCategories.includes(p.category));
         const autoProducts = relatedProducts.filter(p => p.category === 'uc_by_id');
 
-        // Prepare manager notification for this order
-        const managerMessage = `💰 <b>Новая оплата получена!</b>\n\n` +
+        // Build manager message
+        let managerMessage = `💰 <b>Новая оплата получена!</b>\n\n` +
           `ID заказа: <b>${relatedOrder.id}</b>\n` +
           `🎮 PUBG ID: <code>${relatedOrder.pubg_id}</code>\n` +
           `${relatedOrder.nickname ? `👤 Никнейм: ${relatedOrder.nickname}\n` : ''}` +
@@ -232,12 +232,13 @@ router.post('/callback', async (req, res) => {
         for (const managerId of managerIds) {
           try {
             await bot.telegram.sendMessage(managerId, managerMessage, { parse_mode: 'HTML' });
+            console.log(`✅ Sent manager notification to ${managerId}`);
           } catch (err) {
             console.error(`❌ Failed to send notification to manager ${managerId}:`, err.message);
           }
         }
 
-        // Prepare user notification for this order
+        // Build user message
         if (relatedOrder.user_id) {
           let userMessage = `✅ <b>Оплата получена!</b>\n\n` +
             `🎮 PUBG ID: <code>${relatedOrder.pubg_id}</code>\n` +
@@ -271,6 +272,7 @@ router.post('/callback', async (req, res) => {
 
           try {
             await bot.telegram.sendMessage(relatedOrder.user_id, userMessage, { parse_mode: 'HTML' });
+            console.log(`✅ Sent user notification to ${relatedOrder.user_id}`);
           } catch (err) {
             console.error(`❌ Failed to send status update to user ${relatedOrder.user_id}:`, err.message);
           }
