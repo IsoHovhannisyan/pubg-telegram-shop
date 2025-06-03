@@ -198,37 +198,30 @@ router.post('/callback', async (req, res) => {
         const autoProducts = relatedProducts.filter(p => p.category === 'uc_by_id');
 
         // Prepare manager notification for this order
-        const categories = [...new Set(relatedProducts.map(p => p.category))];
-        const categoryLabels = {
-          'POPULARITY_ID': '🎯 Popular by ID',
-          'POPULARITY_HOME': '🏠 Popular by Home',
-          'CARS': '🚗 Cars',
-          'COSTUMES': '👕 X-Costumes',
-          'uc_by_id': '💎 UC by ID'
-        };
-        const productsByCategory = categories.map(category => {
-          const categoryProducts = relatedProducts.filter(p => p.category === category);
-          const categoryTotal = categoryProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-          return {
-            label: categoryLabels[category] || category,
-            products: categoryProducts,
-            total: categoryTotal
-          };
-        });
-        const categorySection = productsByCategory.map(cat => 
-          `\n📦 <b>${cat.label}</b>\n` +
-          cat.products.map(p => `  • ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n') +
-          `\n  💰 Подкатегория: ${cat.total} ₽`
-        ).join('\n');
-
         const managerMessage = `💰 <b>Новая оплата получена!</b>\n\n` +
           `ID заказа: <b>${relatedOrder.id}</b>\n` +
           `🎮 PUBG ID: <code>${relatedOrder.pubg_id}</code>\n` +
           `${relatedOrder.nickname ? `👤 Никнейм: ${relatedOrder.nickname}\n` : ''}` +
-          `${userInfo ? `🆔 Telegram: <b>${relatedOrder.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
-          `${categorySection}\n\n` +
-          `💰 Общая сумма: ${relatedProducts.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n` +
-          `⚠️ Требуется активация!`;
+          `${userInfo ? `🆔 Telegram: <b>${relatedOrder.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}`;
+
+        // Add products to manager message
+        if (autoProducts.length > 0) {
+          const autoText = autoProducts.map(p => `  • ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n');
+          const autoTotal = autoProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
+          managerMessage += `\n📦 💎 UC by ID\n${autoText}\n💰 Подкатегория: ${autoTotal} ₽\n`;
+        }
+
+        if (manualProducts.length > 0) {
+          const manualText = manualProducts.map(p => `  • ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n');
+          const manualTotal = manualProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
+          managerMessage += `\n📦 🧍 Ручная доставка\n${manualText}\n💰 Подкатегория: ${manualTotal} ₽\n`;
+        }
+
+        const total = relatedProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
+        managerMessage += `\n💰 Общая сумма: ${total} ₽\n`;
+        if (manualProducts.length > 0) {
+          managerMessage += `⚠️ Требуется активация!`;
+        }
 
         // Send to all managers
         let managerIds = [];
@@ -246,47 +239,34 @@ router.post('/callback', async (req, res) => {
 
         // Prepare user notification for this order
         if (relatedOrder.user_id) {
-          let userMessage = '';
-          if (manualProducts.length > 0 && autoProducts.length > 0) {
-            // Mixed order in this related order
-            const autoText = autoProducts.map(p => `▫️ ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n');
-            const manualText = manualProducts.map(p => `▫️ ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n');
+          let userMessage = `✅ <b>Оплата получена!</b>\n\n` +
+            `🎮 PUBG ID: <code>${relatedOrder.pubg_id}</code>\n` +
+            `${relatedOrder.nickname ? `👤 Никнейм: ${relatedOrder.nickname}\n` : ''}`;
+
+          if (autoProducts.length > 0) {
+            const autoText = autoProducts.map(p => `• ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n');
             const autoTotal = autoProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
+            userMessage += `\n💳 <b>Авто-доставка (UC):</b>\n${autoText}\n💰 <b>Сумма:</b> ${autoTotal} ₽\n`;
+          }
+
+          if (manualProducts.length > 0) {
+            const manualText = manualProducts.map(p => `• ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n');
             const manualTotal = manualProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-            const fullTotal = autoTotal + manualTotal;
-            userMessage =
-              `✅ <b>Оплата получена!</b>\n\n` +
-              `🎮 PUBG ID: <code>${relatedOrder.pubg_id}</code>\n` +
-              `${relatedOrder.nickname ? `👤 Никнейм: ${relatedOrder.nickname}\n` : ''}` +
-              `\n💳 <b>Авто-доставка (UC):</b>\n${autoText}\n💰 <b>Сумма:</b> ${autoTotal} ₽\n` +
-              `\n📦 <b>Ручная доставка:</b>\n${manualText}\n💰 <b>Сумма:</b> ${manualTotal} ₽\n` +
-              `\n💵 <b>ОБЩАЯ СУММА:</b> <u>${fullTotal} ₽</u>\n` +
-              `━━━━━━━━━━━━━━━━━━━━\n` +
+            userMessage += `\n🧍 <b>Ручная доставка:</b>\n${manualText}\n💰 <b>Сумма:</b> ${manualTotal} ₽\n`;
+          }
+
+          const total = relatedProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
+          userMessage += `\n💵 <b>ОБЩАЯ СУММА:</b> <u>${total} ₽</u>\n`;
+
+          if (manualProducts.length > 0 && autoProducts.length > 0) {
+            userMessage += `\n━━━━━━━━━━━━━━━━━━━━\n` +
               `ℹ️ <b>Внимание!</b>\n` +
               `• <b>Автоматическая доставка</b> — UC будут зачислены на ваш аккаунт сразу после оплаты.\n` +
               `• <b>Ручная доставка</b> — после оплаты менеджер свяжется с вами для передачи остальных товаров.\n`;
           } else if (manualProducts.length > 0) {
-            // Only manual products
-            const manualText = manualProducts.map(p => `▫️ ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n');
-            const manualTotal = manualProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-            userMessage =
-              `✅ <b>Оплата получена!</b>\n\n` +
-              `🎮 PUBG ID: <code>${relatedOrder.pubg_id}</code>\n` +
-              `${relatedOrder.nickname ? `👤 Никнейм: ${relatedOrder.nickname}\n` : ''}` +
-              `\n📦 <b>Ручная доставка:</b>\n${manualText}\n` +
-              `💰 <b>Сумма:</b> ${manualTotal} ₽\n` +
-              `\n⏳ Ваш заказ принят в обработку. После проверки с вами свяжется менеджер для передачи товаров.`;
+            userMessage += `\n⏳ Ваш заказ принят в обработку. После проверки с вами свяжется менеджер для передачи товаров.`;
           } else {
-            // Only auto products
-            const autoText = autoProducts.map(p => `▫️ ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n');
-            const autoTotal = autoProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-            userMessage =
-              `✅ <b>Оплата получена!</b>\n\n` +
-              `🎮 PUBG ID: <code>${relatedOrder.pubg_id}</code>\n` +
-              `${relatedOrder.nickname ? `👤 Никнейм: ${relatedOrder.nickname}\n` : ''}` +
-              `\n💳 <b>Авто-доставка (UC):</b>\n${autoText}\n` +
-              `💰 <b>Сумма:</b> ${autoTotal} ₽\n` +
-              `\n⏳ Ваш заказ принят в обработку. Ожидайте автоматической активации!`;
+            userMessage += `\n⏳ Ваш заказ принят в обработку. Ожидайте автоматической активации!`;
           }
 
           try {
