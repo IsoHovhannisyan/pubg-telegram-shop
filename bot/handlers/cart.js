@@ -83,9 +83,9 @@ async function showCart(ctx) {
   if (allItems.length === 0) return emptyReply();
 
   function formatTypeTag(type) {
-    if (type === 'auto') return '(по входу) ✅';
-    if (type === 'manual') return '(по ID) 🧑‍💻';
-    if (type === 'costume') return '(X-Костюм) 🎭';
+    if (type === 'auto') return '(по ID) 🧑‍💻';
+    // if (type === 'manual') return '(по ID) 🧑‍💻';
+    // if (type === 'costume') return '(X-Костюм) 🎭';
     return '';
   }
 

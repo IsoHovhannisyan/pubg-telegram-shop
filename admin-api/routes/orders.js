@@ -134,6 +134,16 @@ router.get('/:id', verifyToken, async (req, res) => {
   }
 });
 
+// Status mapping for Russian
+const statusLabelsRu = {
+  unpaid: 'Не оплачен',
+  pending: 'В обработке',
+  delivered: 'Доставлен',
+  error: 'Ошибка',
+  completed: 'Завершён',
+  manual_processing: 'Требует ручной обработки',
+};
+
 // Обновить статус заказа
 router.patch('/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
@@ -320,7 +330,7 @@ router.patch('/:id', verifyToken, async (req, res) => {
         `${userInfo ? `🆔 Telegram: <b>${order.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
         `${categorySection}\n\n` +
         `💰 Общая сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n` +
-        `📦 Новый статус: <b>${status}</b>`;
+        `📦 Новый статус: <b>${statusLabelsRu[status] || status}</b>`;
     }
 
       for (const managerId of managerIds) {

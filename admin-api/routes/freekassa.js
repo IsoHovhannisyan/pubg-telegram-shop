@@ -222,12 +222,7 @@ router.post('/callback', async (req, res) => {
         cat.products.map(p => `  • ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n')
       ).join('\n');
 
-      // Determine if this is a manual order
-      const manualCategories = ['popularity_by_id', 'popularity_home_by_id', 'cars', 'costumes'];
-      const manualProducts = currentProducts.filter(p => manualCategories.includes(p.category));
-      const isManualOrder = manualProducts.length > 0;
-
-      // Send manager notification
+      // Send manager notification (unified format)
       const managerMessage = `💰 <b>Новая оплата получена!</b>\n\n` +
         `ID заказа: <b>${currentOrder.id}</b>\n` +
         `🎮 PUBG ID: <code>${currentOrder.pubg_id}</code>\n` +
@@ -244,28 +239,7 @@ router.post('/callback', async (req, res) => {
       managerIds = [...new Set(managerIds.filter(Boolean))];
       for (const managerId of managerIds) {
         try {
-          // Only send general notification for non-manual orders
-          if (!isManualOrder) {
-            await bot.telegram.sendMessage(managerId, managerMessage, { parse_mode: 'HTML' });
-          }
-          
-          // If this is a manual order, send only the manual order notification
-          if (isManualOrder) {
-            const itemsText = manualProducts.map(p =>
-              `▫️ ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
-            ).join('\n');
-            const total = manualProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-            const managerPaidMsg =
-              `💰 <b>Поступил новый оплаченный заказ (ручная доставка)</b>\n\n` +
-              `ID заказа: <b>${currentOrder.id}</b>\n` +
-              `🎮 PUBG ID: <code>${currentOrder.pubg_id}</code>\n` +
-              `${currentOrder.nickname ? `👤 Никнейм: ${currentOrder.nickname}\n` : ''}` +
-              `${userInfo ? `🆔 Telegram: <b>${currentOrder.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
-              `\n📦 Мануальные товары:\n${itemsText}\n` +
-              `💰 Сумма: ${total} ₽\n` +
-              `\n⚠️ Заказ уже оплачен! Необходимо вручную доставить товары клиенту.`;
-            await bot.telegram.sendMessage(managerId, managerPaidMsg, { parse_mode: 'HTML' });
-          }
+          await bot.telegram.sendMessage(managerId, managerMessage, { parse_mode: 'HTML' });
         } catch (err) {
           console.error(`❌ Failed to send notification to manager ${managerId}:`, err.message);
         }
@@ -278,9 +252,7 @@ router.post('/callback', async (req, res) => {
           `${currentOrder.nickname ? `👤 Никнейм: ${currentOrder.nickname}\n` : ''}` +
           `${categorySection}\n\n` +
           `💰 Общая сумма: ${currentProducts.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n\n` +
-          (isManualOrder 
-            ? `⏳ Ваш заказ принят в обработку.\nМенеджер свяжется с вами в ближайшее время для передачи товаров!`
-            : `⏳ Ваш заказ принят в обработку.\nОжидайте автоматической активации!`);
+          `⏳ Ваш заказ принят в обработку.\nОжидайте автоматической активации!`;
         try {
           await bot.telegram.sendMessage(currentOrder.user_id, userMessage, { parse_mode: 'HTML' });
         } catch (err) {
