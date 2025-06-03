@@ -275,12 +275,18 @@ router.post('/callback', async (req, res) => {
 
       // Send user notification for each order
       if (currentOrder.user_id) {
+        // Check if this is a manual order
+        const manualCategories = ['popularity_by_id', 'popularity_home_by_id', 'cars', 'costumes'];
+        const isManualOrder = currentProducts.some(p => manualCategories.includes(p.category));
+        
         const userMessage = `💰 <b>Оплата получена!</b>\n\n` +
           `🎮 PUBG ID: <code>${currentOrder.pubg_id}</code>\n` +
           `${currentOrder.nickname ? `👤 Никнейм: ${currentOrder.nickname}\n` : ''}` +
           `${categorySection}\n\n` +
           `💰 Общая сумма: ${currentProducts.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n\n` +
-          `⏳ Ваш заказ принят в обработку. Ожидайте автоматической активации!`;
+          (isManualOrder 
+            ? `⏳ Ваш заказ принят в обработку.\nМенеджер свяжется с вами в ближайшее время для передачи товаров!`
+            : `⏳ Ваш заказ принят в обработку.\nОжидайте автоматической активации!`);
         try {
           await bot.telegram.sendMessage(currentOrder.user_id, userMessage, { parse_mode: 'HTML' });
         } catch (err) {
