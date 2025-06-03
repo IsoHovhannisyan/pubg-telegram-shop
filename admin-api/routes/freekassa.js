@@ -157,126 +157,101 @@ router.post('/callback', async (req, res) => {
     const refreshedResult = await pool.query('SELECT * FROM orders WHERE id = $1', [MERCHANT_ORDER_ID]);
     const refreshedOrder = refreshedResult.rows[0];
 
-    // --- NEW: Update all related orders with the same checkout_id ---
-    const checkoutId = refreshedOrder.checkout_id;
-    if (checkoutId) {
-      // First, get all related orders
-      const relatedOrdersRes = await pool.query(
-        `SELECT * FROM orders WHERE checkout_id = $1 AND status = 'unpaid'`,
-        [checkoutId]
-      );
+    // 1. Notify manager (reuse notification logic from orders.js)
+    let userInfo = null;
+    try {
+      const userRes = await db.query('SELECT username FROM users WHERE telegram_id = $1', [refreshedOrder.user_id]);
+      userInfo = userRes.rows[0];
+    } catch (e) { userInfo = null; }
 
-      // Process all related orders
-      for (const relatedOrder of relatedOrdersRes.rows) {
-        // Update status to pending
-        await pool.query('UPDATE orders SET status = $1 WHERE id = $2', ['pending', relatedOrder.id]);
-        
-        // Process stock for related order
-        const relatedProducts = Array.isArray(relatedOrder.products) ? relatedOrder.products : JSON.parse(relatedOrder.products || '[]');
-        for (const p of relatedProducts) {
-          await pool.query(
-            'UPDATE products SET stock = stock - $1 WHERE id = $2',
-            [p.qty, p.id]
-          );
-          await pool.query(
-            `INSERT INTO stock_history (product_id, quantity, type, note)
-             VALUES ($1, $2, $3, $4)`,
-            [p.id, -p.qty, 'order', `Order #${relatedOrder.id} stock decreased after Freekassa payment`]
-          );
-        }
+    const itemsText = products.map(p => 
+      `📦 ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
+    ).join('\n');
 
-        // Get user info for the related order
-        let userInfo = null;
+    const categories = [...new Set(products.map(p => p.category))];
+    const categoryLabels = {
+      'POPULARITY_ID': '🎯 Popular by ID',
+      'POPULARITY_HOME': '🏠 Popular by Home',
+      'CARS': '🚗 Cars',
+      'COSTUMES': '👕 X-Costumes',
+      'uc_by_id': '💎 UC by ID'
+    };
+    const productsByCategory = categories.map(category => {
+      const categoryProducts = products.filter(p => p.category === category);
+      const categoryTotal = categoryProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
+      return {
+        label: categoryLabels[category] || category,
+        products: categoryProducts,
+        total: categoryTotal
+      };
+    });
+    const categorySection = productsByCategory.map(cat => 
+      `\n📦 <b>${cat.label}</b>\n` +
+      cat.products.map(p => `  • ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n') +
+      `\n  💰 Подкатегория: ${cat.total} ₽`
+    ).join('\n');
+
+    const managerMessage = `💰 <b>Новая оплата получена!</b>\n\n` +
+      `ID заказа: <b>${refreshedOrder.id}</b>\n` +
+      `🎮 PUBG ID: <code>${refreshedOrder.pubg_id}</code>\n` +
+      `${refreshedOrder.nickname ? `👤 Никнейм: ${refreshedOrder.nickname}\n` : ''}` +
+      `${userInfo ? `🆔 Telegram: <b>${refreshedOrder.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
+      `${categorySection}\n\n` +
+      `💰 Общая сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n` +
+      `⚠️ Требуется активация!`;
+
+    // Send to all managers
+    let managerIds = [];
+    if (process.env.MANAGER_CHAT_ID) managerIds.push(process.env.MANAGER_CHAT_ID);
+    if (process.env.MANAGER_IDS) managerIds = managerIds.concat(process.env.MANAGER_IDS.split(','));
+    managerIds = [...new Set(managerIds.filter(Boolean))];
+    for (const managerId of managerIds) {
+      try {
+        await bot.telegram.sendMessage(managerId, managerMessage, { parse_mode: 'HTML' });
+      } catch (err) {
+        console.error(`❌ Failed to send notification to manager ${managerId}:`, err.message);
+      }
+    }
+
+    // --- Notify manager about paid manual orders ---
+    // Determine if there are manual products
+    const manualCategories = ['popularity_by_id', 'popularity_home_by_id', 'cars', 'costumes'];
+    const manualProducts = products.filter(p => manualCategories.includes(p.category));
+    if (manualProducts.length > 0) {
+      const itemsText = manualProducts.map(p =>
+        `▫️ ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
+      ).join('\n');
+      const total = manualProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
+      const managerPaidMsg =
+        `💰 <b>Поступил новый оплаченный заказ (ручная доставка)</b>\n\n` +
+        `ID заказа: <b>${refreshedOrder.id}</b>\n` +
+        `🎮 PUBG ID: <code>${refreshedOrder.pubg_id}</code>\n` +
+        `${refreshedOrder.nickname ? `👤 Никнейм: ${refreshedOrder.nickname}\n` : ''}` +
+        `${userInfo ? `🆔 Telegram: <b>${refreshedOrder.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
+        `\n📦 Мануальные товары:\n${itemsText}\n` +
+        `💰 Сумма: ${total} ₽\n` +
+        `\n⚠️ Заказ уже оплачен! Необходимо вручную доставить товары клиенту.`;
+      for (const managerId of managerIds) {
         try {
-          const userRes = await db.query('SELECT username FROM users WHERE telegram_id = $1', [relatedOrder.user_id]);
-          userInfo = userRes.rows[0];
-        } catch (e) { userInfo = null; }
-
-        // Check for manual products in related order
-        const manualCategories = ['POPULARITY_ID', 'POPULARITY_HOME', 'CARS', 'COSTUMES'];
-        const manualProducts = relatedProducts.filter(p => manualCategories.includes(p.category));
-        const autoProducts = relatedProducts.filter(p => p.category === 'uc_by_id');
-
-        // Build manager message
-        let managerMessage = `💰 <b>Новая оплата получена!</b>\n\n` +
-          `ID заказа: <b>${relatedOrder.id}</b>\n` +
-          `🎮 PUBG ID: <code>${relatedOrder.pubg_id}</code>\n` +
-          `${relatedOrder.nickname ? `👤 Никнейм: ${relatedOrder.nickname}\n` : ''}` +
-          `${userInfo ? `🆔 Telegram: <b>${relatedOrder.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}`;
-
-        // Add products to manager message
-        if (autoProducts.length > 0) {
-          const autoText = autoProducts.map(p => `  • ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n');
-          const autoTotal = autoProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-          managerMessage += `\n📦 💎 UC by ID\n${autoText}\n💰 Подкатегория: ${autoTotal} ₽\n`;
+          await bot.telegram.sendMessage(managerId, managerPaidMsg, { parse_mode: 'HTML' });
+        } catch (err) {
+          console.error(`❌ Failed to send paid manual order notification to manager ${managerId}:`, err.message);
         }
+      }
+    }
 
-        if (manualProducts.length > 0) {
-          const manualText = manualProducts.map(p => `  • ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n');
-          const manualTotal = manualProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-          managerMessage += `\n📦 🧍 Ручная доставка\n${manualText}\n💰 Подкатегория: ${manualTotal} ₽\n`;
-        }
-
-        const total = relatedProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-        managerMessage += `\n💰 Общая сумма: ${total} ₽\n`;
-        if (manualProducts.length > 0) {
-          managerMessage += `⚠️ Требуется активация!`;
-        }
-
-        // Send to all managers
-        let managerIds = [];
-        if (process.env.MANAGER_CHAT_ID) managerIds.push(process.env.MANAGER_CHAT_ID);
-        if (process.env.MANAGER_IDS) managerIds = managerIds.concat(process.env.MANAGER_IDS.split(','));
-        managerIds = [...new Set(managerIds.filter(Boolean))];
-        
-        for (const managerId of managerIds) {
-          try {
-            await bot.telegram.sendMessage(managerId, managerMessage, { parse_mode: 'HTML' });
-            console.log(`✅ Sent manager notification to ${managerId}`);
-          } catch (err) {
-            console.error(`❌ Failed to send notification to manager ${managerId}:`, err.message);
-          }
-        }
-
-        // Build user message
-        if (relatedOrder.user_id) {
-          let userMessage = `✅ <b>Оплата получена!</b>\n\n` +
-            `🎮 PUBG ID: <code>${relatedOrder.pubg_id}</code>\n` +
-            `${relatedOrder.nickname ? `👤 Никнейм: ${relatedOrder.nickname}\n` : ''}`;
-
-          if (autoProducts.length > 0) {
-            const autoText = autoProducts.map(p => `• ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n');
-            const autoTotal = autoProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-            userMessage += `\n💳 <b>Авто-доставка (UC):</b>\n${autoText}\n💰 <b>Сумма:</b> ${autoTotal} ₽\n`;
-          }
-
-          if (manualProducts.length > 0) {
-            const manualText = manualProducts.map(p => `• ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n');
-            const manualTotal = manualProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-            userMessage += `\n🧍 <b>Ручная доставка:</b>\n${manualText}\n💰 <b>Сумма:</b> ${manualTotal} ₽\n`;
-          }
-
-          const total = relatedProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-          userMessage += `\n💵 <b>ОБЩАЯ СУММА:</b> <u>${total} ₽</u>\n`;
-
-          if (manualProducts.length > 0 && autoProducts.length > 0) {
-            userMessage += `\n━━━━━━━━━━━━━━━━━━━━\n` +
-              `ℹ️ <b>Внимание!</b>\n` +
-              `• <b>Автоматическая доставка</b> — UC будут зачислены на ваш аккаунт сразу после оплаты.\n` +
-              `• <b>Ручная доставка</b> — после оплаты менеджер свяжется с вами для передачи остальных товаров.\n`;
-          } else if (manualProducts.length > 0) {
-            userMessage += `\n⏳ Ваш заказ принят в обработку. После проверки с вами свяжется менеджер для передачи товаров.`;
-          } else {
-            userMessage += `\n⏳ Ваш заказ принят в обработку. Ожидайте автоматической активации!`;
-          }
-
-          try {
-            await bot.telegram.sendMessage(relatedOrder.user_id, userMessage, { parse_mode: 'HTML' });
-            console.log(`✅ Sent user notification to ${relatedOrder.user_id}`);
-          } catch (err) {
-            console.error(`❌ Failed to send status update to user ${relatedOrder.user_id}:`, err.message);
-          }
-        }
+    // 2. Notify user
+    if (refreshedOrder.user_id) {
+      const userMessage = `💰 <b>Оплата получена!</b>\n\n` +
+        `🎮 PUBG ID: <code>${refreshedOrder.pubg_id}</code>\n` +
+        `${refreshedOrder.nickname ? `👤 Никнейм: ${refreshedOrder.nickname}\n` : ''}` +
+        `${categorySection}\n\n` +
+        `💰 Общая сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n\n` +
+        `⏳ Ваш заказ принят в обработку. Ожидайте автоматической активации!`;
+      try {
+        await bot.telegram.sendMessage(refreshedOrder.user_id, userMessage, { parse_mode: 'HTML' });
+      } catch (err) {
+        console.error(`❌ Failed to send status update to user ${refreshedOrder.user_id}:`, err.message);
       }
     }
 
