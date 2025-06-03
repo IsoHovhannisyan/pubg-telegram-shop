@@ -82,6 +82,24 @@ router.post('/callback', async (req, res) => {
     await pool.query('UPDATE orders SET status = $1 WHERE id = $2', ['pending', MERCHANT_ORDER_ID]);
     console.log('Order status updated to pending:', MERCHANT_ORDER_ID);
 
+    // If this order has a checkout_id, also update any other orders with the same checkout_id
+    if (order.checkout_id) {
+      const relatedOrdersResult = await pool.query(
+        'SELECT * FROM orders WHERE checkout_id = $1 AND id != $2',
+        [order.checkout_id, MERCHANT_ORDER_ID]
+      );
+      
+      for (const relatedOrder of relatedOrdersResult.rows) {
+        if (relatedOrder.status !== 'delivered' && relatedOrder.status !== 'error') {
+          await pool.query(
+            'UPDATE orders SET status = $1 WHERE id = $2',
+            ['pending', relatedOrder.id]
+          );
+          console.log('Related order status updated to pending:', relatedOrder.id);
+        }
+      }
+    }
+
     // --- STOCK RESERVATION/RESTORATION LOGIC ---
     // 1. Decrease stock when status changes from unpaid to pending
     if (prevStatus === 'unpaid') {
@@ -338,4 +356,4 @@ router.post('/link', async (req, res) => {
   return res.json({ link });
 });
 
-module.exports = router; 
+module.exports = router;
