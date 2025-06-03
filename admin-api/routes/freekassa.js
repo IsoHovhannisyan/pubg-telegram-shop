@@ -223,7 +223,12 @@ router.post('/callback', async (req, res) => {
         `\n  💰 Подкатегория: ${cat.total} ₽`
       ).join('\n');
 
-      // Send manager notification for each order
+      // Determine if this is a manual order
+      const manualCategories = ['popularity_by_id', 'popularity_home_by_id', 'cars', 'costumes'];
+      const manualProducts = currentProducts.filter(p => manualCategories.includes(p.category));
+      const isManualOrder = manualProducts.length > 0;
+
+      // Send manager notification
       const managerMessage = `💰 <b>Новая оплата получена!</b>\n\n` +
         `ID заказа: <b>${currentOrder.id}</b>\n` +
         `🎮 PUBG ID: <code>${currentOrder.pubg_id}</code>\n` +
@@ -241,44 +246,31 @@ router.post('/callback', async (req, res) => {
       for (const managerId of managerIds) {
         try {
           await bot.telegram.sendMessage(managerId, managerMessage, { parse_mode: 'HTML' });
+          
+          // If this is a manual order, send an additional notification to managers
+          if (isManualOrder) {
+            const itemsText = manualProducts.map(p =>
+              `▫️ ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
+            ).join('\n');
+            const total = manualProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
+            const managerPaidMsg =
+              `💰 <b>Поступил новый оплаченный заказ (ручная доставка)</b>\n\n` +
+              `ID заказа: <b>${currentOrder.id}</b>\n` +
+              `🎮 PUBG ID: <code>${currentOrder.pubg_id}</code>\n` +
+              `${currentOrder.nickname ? `👤 Никнейм: ${currentOrder.nickname}\n` : ''}` +
+              `${userInfo ? `🆔 Telegram: <b>${currentOrder.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
+              `\n📦 Мануальные товары:\n${itemsText}\n` +
+              `💰 Сумма: ${total} ₽\n` +
+              `\n⚠️ Заказ уже оплачен! Необходимо вручную доставить товары клиенту.`;
+            await bot.telegram.sendMessage(managerId, managerPaidMsg, { parse_mode: 'HTML' });
+          }
         } catch (err) {
           console.error(`❌ Failed to send notification to manager ${managerId}:`, err.message);
         }
       }
 
-      // --- Notify manager about paid manual orders ---
-      // Determine if there are manual products
-      const manualCategories = ['popularity_by_id', 'popularity_home_by_id', 'cars', 'costumes'];
-      const manualProducts = currentProducts.filter(p => manualCategories.includes(p.category));
-      if (manualProducts.length > 0) {
-        const itemsText = manualProducts.map(p =>
-          `▫️ ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
-        ).join('\n');
-        const total = manualProducts.reduce((sum, p) => sum + (p.price * p.qty), 0);
-        const managerPaidMsg =
-          `💰 <b>Поступил новый оплаченный заказ (ручная доставка)</b>\n\n` +
-          `ID заказа: <b>${currentOrder.id}</b>\n` +
-          `🎮 PUBG ID: <code>${currentOrder.pubg_id}</code>\n` +
-          `${currentOrder.nickname ? `👤 Никнейм: ${currentOrder.nickname}\n` : ''}` +
-          `${userInfo ? `🆔 Telegram: <b>${currentOrder.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
-          `\n📦 Мануальные товары:\n${itemsText}\n` +
-          `💰 Сумма: ${total} ₽\n` +
-          `\n⚠️ Заказ уже оплачен! Необходимо вручную доставить товары клиенту.`;
-        for (const managerId of managerIds) {
-          try {
-            await bot.telegram.sendMessage(managerId, managerPaidMsg, { parse_mode: 'HTML' });
-          } catch (err) {
-            console.error(`❌ Failed to send paid manual order notification to manager ${managerId}:`, err.message);
-          }
-        }
-      }
-
-      // Send user notification for each order
+      // Send user notification
       if (currentOrder.user_id) {
-        // Check if this is a manual order
-        const manualCategories = ['popularity_by_id', 'popularity_home_by_id', 'cars', 'costumes'];
-        const isManualOrder = currentProducts.some(p => manualCategories.includes(p.category));
-        
         const userMessage = `💰 <b>Оплата получена!</b>\n\n` +
           `🎮 PUBG ID: <code>${currentOrder.pubg_id}</code>\n` +
           `${currentOrder.nickname ? `👤 Никнейм: ${currentOrder.nickname}\n` : ''}` +
