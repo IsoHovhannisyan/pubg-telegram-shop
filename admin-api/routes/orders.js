@@ -289,8 +289,7 @@ router.patch('/:id', verifyToken, async (req, res) => {
     // Build category section
     const categorySection = productsByCategory.map(cat => 
       `\n📦 <b>${cat.label}</b>\n` +
-      cat.products.map(p => `  • ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n') +
-      `\n  💰 Подкатегория: ${cat.total} ₽`
+      cat.products.map(p => `  • ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n')
     ).join('\n');
 
     // Build manager message based on status change

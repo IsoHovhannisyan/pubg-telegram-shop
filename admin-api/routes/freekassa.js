@@ -219,8 +219,7 @@ router.post('/callback', async (req, res) => {
       });
       const categorySection = productsByCategory.map(cat => 
         `\n📦 <b>${cat.label}</b>\n` +
-        cat.products.map(p => `  • ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n') +
-        `\n  💰 Подкатегория: ${cat.total} ₽`
+        cat.products.map(p => `  • ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`).join('\n')
       ).join('\n');
 
       // Determine if this is a manual order
