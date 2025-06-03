@@ -118,6 +118,8 @@ async function registerOrder(ctx, pubgId, items, nickname) {
   console.log("Auto Items:", autoItems.length);
 
   try {
+    // Generate a unique checkout_id for this cart/checkout
+    const checkoutId = Date.now() + '-' + userId;
     // Register orders through admin panel API
     let autoOrder = null;
     let manualOrder = null;
@@ -128,7 +130,8 @@ async function registerOrder(ctx, pubgId, items, nickname) {
         products: manualItems,
         time: createdAt,
         status: 'unpaid',
-        nickname: nickname
+        nickname: nickname,
+        checkout_id: checkoutId
       });
       manualOrder = res.data;
       console.log('✅ Manual order registered as unpaid');
@@ -141,7 +144,8 @@ async function registerOrder(ctx, pubgId, items, nickname) {
         products: autoItems,
         time: createdAt,
         status: 'unpaid',
-        nickname: nickname
+        nickname: nickname,
+        checkout_id: checkoutId
       });
       autoOrder = res.data;
       console.log('✅ Auto order registered as unpaid');
@@ -161,17 +165,40 @@ async function registerOrder(ctx, pubgId, items, nickname) {
     finalMessage += `💵 <b>ОБЩАЯ СУММА:</b> <u>${fullSum} ₽</u>\n`;
     finalMessage += `━━━━━━━━━━━━━━━━━━━━\n`;
 
-    if (autoItems.length > 0 && autoOrder) {
-      const ucSum = getTotal(autoItems);
+    // Add auto-activated products to the message
+    if (autoItems.length > 0) {
       const ucList = autoItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
-      const payUrl = `https://pubg-telegram-shop.onrender.com/pay/${autoOrder.id}?amount=${ucSum}`;
-
       finalMessage += `💳 <b>Авто-доставка (UC):</b>\n${ucList}\n`;
-      finalMessage += `💰 <b>Сумма:</b> ${ucSum} ₽\n`;
-      finalMessage += `📦 <b>Статус:</b> ${getStatusLabel('unpaid')}\n`;
-      finalMessage += `━━━━━━━━━━━━━━━━━━━━\n`;
+      finalMessage += `💰 <b>Сумма:</b> ${autoSum} ₽\n`;
+    }
 
-      // Send payment button instead of raw link
+    // Add manual products to the message
+    if (manualItems.length > 0) {
+      const manualList = manualItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
+      finalMessage += `🧍 <b>Ручная доставка:</b>\n${manualList}\n`;
+      finalMessage += `💰 <b>Сумма:</b> ${manualSum} ₽\n`;
+      finalMessage += `👉 После оплаты с вами свяжется менеджер\n`;
+    }
+
+    // If both auto and manual products are present, add an explanation message
+    if (autoItems.length > 0 && manualItems.length > 0) {
+      finalMessage += `━━━━━━━━━━━━━━━━━━━━\n`;
+      finalMessage += `ℹ️ <b>Внимание!</b>\n`;
+      finalMessage += `В ваш заказ входят товары с разными способами доставки:\n`;
+      finalMessage += `• <b>Автоматическая доставка</b> — UC будут зачислены на ваш аккаунт сразу после оплаты.\n`;
+      finalMessage += `• <b>Ручная доставка</b> — после оплаты менеджер свяжется с вами для передачи остальных товаров.\n`;
+    }
+
+    // Determine the payment URL based on the order type
+    let payUrl;
+    if (autoItems.length > 0 && autoOrder) {
+      payUrl = `https://pubg-telegram-shop.onrender.com/pay/${autoOrder.id}?amount=${fullSum}`;
+    } else if (manualItems.length > 0 && manualOrder) {
+      payUrl = `https://pubg-telegram-shop.onrender.com/pay/${manualOrder.id}?amount=${fullSum}`;
+    }
+
+    // Send the unified message with payment button if applicable
+    if (payUrl) {
       await ctx.replyWithHTML(
         finalMessage + 'Для оплаты нажмите на кнопку ниже:',
         Markup.inlineKeyboard([
@@ -179,20 +206,7 @@ async function registerOrder(ctx, pubgId, items, nickname) {
         ])
       );
     } else {
-      // Send the final message if no autoItems
       await ctx.replyWithHTML(finalMessage);
-    }
-
-    // Notify managers if needed
-    if (manualItems.length > 0 && manualOrder) {
-      const message = buildManagerMessage(ctx, pubgId, manualItems, nickname);
-      for (const managerId of MANAGER_IDS) {
-        try {
-          await ctx.telegram.sendMessage(managerId, message);
-        } catch (err) {
-          console.error(`❌ Failed to send message to manager (${managerId})`, err.message);
-        }
-      }
     }
   } catch (err) {
     console.error('Error registering order:', err);

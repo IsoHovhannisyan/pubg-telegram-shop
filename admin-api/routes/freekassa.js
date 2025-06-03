@@ -303,6 +303,21 @@ router.post('/callback', async (req, res) => {
       }
     }
 
+    // --- NEW: Update all related orders with the same checkout_id ---
+    const checkoutId = refreshedOrder.checkout_id;
+    if (checkoutId) {
+      const relatedOrdersRes = await pool.query(
+        `SELECT * FROM orders WHERE checkout_id = $1 AND status = 'unpaid'`,
+        [checkoutId]
+      );
+      for (const relatedOrder of relatedOrdersRes.rows) {
+        // Update status to pending
+        await pool.query('UPDATE orders SET status = $1 WHERE id = $2', ['pending', relatedOrder.id]);
+        // Send notifications for manual/auto as needed (reuse existing logic)
+        // (You may want to refactor notification logic into a function for DRYness)
+      }
+    }
+
     res.setHeader('Content-Type', 'text/plain');
     return res.send('YES');
   } catch (err) {

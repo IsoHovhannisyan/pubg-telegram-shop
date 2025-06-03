@@ -418,7 +418,7 @@ router.get('/stats/summary', verifyToken, async (req, res) => {
 
 // Create a new order (for bot and admin panel)
 router.post('/', verifyToken, async (req, res) => {
-  const { user_id, pubg_id, products, time, nickname } = req.body;
+  const { user_id, pubg_id, products, time, nickname, checkout_id } = req.body;
 
   if (!user_id || !products || !time) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -426,8 +426,8 @@ router.post('/', verifyToken, async (req, res) => {
 
   try {
     const result = await db.query(
-      `INSERT INTO orders (user_id, pubg_id, products, status, time, nickname)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO orders (user_id, pubg_id, products, status, time, nickname, checkout_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
         user_id,
@@ -435,7 +435,8 @@ router.post('/', verifyToken, async (req, res) => {
         JSON.stringify(products),
         'unpaid', // Always set to unpaid on creation
         time,
-        nickname || null
+        nickname || null,
+        checkout_id || null
       ]
     );
     res.json(result.rows[0]);
