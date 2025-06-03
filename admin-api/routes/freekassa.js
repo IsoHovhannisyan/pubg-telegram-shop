@@ -245,9 +245,12 @@ router.post('/callback', async (req, res) => {
       managerIds = [...new Set(managerIds.filter(Boolean))];
       for (const managerId of managerIds) {
         try {
-          await bot.telegram.sendMessage(managerId, managerMessage, { parse_mode: 'HTML' });
+          // Only send general notification for non-manual orders
+          if (!isManualOrder) {
+            await bot.telegram.sendMessage(managerId, managerMessage, { parse_mode: 'HTML' });
+          }
           
-          // If this is a manual order, send an additional notification to managers
+          // If this is a manual order, send only the manual order notification
           if (isManualOrder) {
             const itemsText = manualProducts.map(p =>
               `▫️ ${p.name || p.title} x${p.qty} — ${p.price * p.qty} ₽`
