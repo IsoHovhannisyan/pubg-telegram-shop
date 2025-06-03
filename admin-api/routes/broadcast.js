@@ -27,7 +27,7 @@ router.post('/broadcast', verifyToken, async (req, res) => {
           reply_markup: {
             inline_keyboard: [
               [
-                { text: '💬 Оставить отзыв', url: 'https://t.me/Isohovhannisyan' }
+                { text: '💬 Оставить отзыв', url: 'https://t.me/inv1s_shop' }
               ]
             ]
           }

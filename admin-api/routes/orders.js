@@ -33,7 +33,7 @@ router.post('/notify-delivery', verifyToken, async (req, res) => {
       reply_markup: {
         inline_keyboard: [
           [
-            { text: '💬 Оставить отзыв', url: 'https://t.me/Isohovhannisyan' }
+            { text: '💬 Оставить отзыв', url: 'https://t.me/inv1s_shop' }
           ]
         ]
       },
@@ -351,7 +351,7 @@ router.patch('/:id', verifyToken, async (req, res) => {
           `${categorySection}\n\n` +
           `💰 Общая сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n\n` +
           `Спасибо за покупку! 🎉\n\n` +
-          `💬 Оставьте отзыв о нашем сервисе: @Isohovhannisyan`;
+          `💬 Оставьте отзыв о нашем сервисе: @inv1s_shop`;
       } else if (status === 'error') {
         userMessage = `❌ <b>Произошла ошибка при обработке заказа</b>\n\n` +
           `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
@@ -360,7 +360,7 @@ router.patch('/:id', verifyToken, async (req, res) => {
           `💰 Общая сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n\n` +
           `Наши менеджеры уже работают над решением проблемы.\n` +
           `Мы свяжемся с вами в ближайшее время.\n\n` +
-          `📞 Поддержка: @Isohovhannisyan`;
+          `📞 Поддержка: @inv1s_shop`;
       } else if (status === 'pending' && prevStatus === 'unpaid') {
         userMessage = `💰 <b>Оплата получена!</b>\n\n` +
           `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
