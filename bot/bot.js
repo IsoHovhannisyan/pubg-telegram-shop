@@ -164,8 +164,7 @@ bot.on('text', async (ctx) => {
 });
 
 // ▶️ Запуск бота (webhook support)
-// const useWebhook = !!process.env.BOT_WEBHOOK_URL;
-const useWebhook = false;
+const useWebhook = !!process.env.BOT_WEBHOOK_URL;
 if (useWebhook) {
   const webhookPath = '/webhook';
   const webhookUrl = process.env.BOT_WEBHOOK_URL + webhookPath;
