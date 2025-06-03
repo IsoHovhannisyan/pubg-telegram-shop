@@ -1,11 +1,11 @@
 module.exports = {
   start: {
-    welcome: "🎮 Welcome to PUBG UC Bot!\n\n" +
-            "✨ Here you can:\n" +
-            "• Buy UC for PUBG Mobile\n" +
-            "• Get popularity\n" +
-            "• Purchase cars and costumes\n\n" +
-            "🛍 Choose a category from the menu below 👇"
+    welcome: "🎮 Welcome to Inv1sible SHOP 24/7\n\n" +
+            "✨ Here you can buy:\n" +
+            "• UC for PUBG MOBILE\n" +
+            "• Popularity for PUBG MOBILE\n" +
+            "• Cars and X-suits\n\n" +
+            "🛍️ Choose a category from the menu below 👇🏼"
   },
   errors: {
     cart_load_failed: "❌ Failed to load your cart."

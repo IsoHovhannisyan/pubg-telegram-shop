@@ -48,7 +48,7 @@ const catalogCommand = async (ctx, type = 'auto') => {
     );
 
     const filtered = rows.map(product => ({
-      name: product.name,
+      name: `${product.name} — ${product.price} ${lang.currency}`,
       value: `uc_${product.id}`,
     }));
 
@@ -121,7 +121,7 @@ const callbackQuery = async (ctx) => {
 
     await ctx.answerCbQuery();
     await ctx.reply(
-      `${product.name} ✅ ${lang.catalog.added}\n🗃 В наличии: ${product.stock} шт.`,
+      `${product.name} — ${product.price} ${lang.currency} ✅ ${lang.catalog.added}\n🗃 В наличии: ${product.stock} шт.`,
       Markup.inlineKeyboard([
         [Markup.button.callback(lang.buttons.to_cart, "go_to_cart")]
       ])
