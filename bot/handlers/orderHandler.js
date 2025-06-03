@@ -164,7 +164,7 @@ async function registerOrder(ctx, pubgId, items, nickname) {
     if (autoItems.length > 0 && autoOrder) {
       const ucSum = getTotal(autoItems);
       const ucList = autoItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
-      const payUrl = `https://myshop.ru/pay/${autoOrder.id}?amount=${ucSum}`;
+      const payUrl = `https://pubg-telegram-shop.onrender.com/pay/${autoOrder.id}?amount=${ucSum}`;
 
       finalMessage += `💳 <b>Авто-доставка (UC):</b>\n${ucList}\n`;
       finalMessage += `💰 <b>Сумма:</b> ${ucSum} ₽\n`;
