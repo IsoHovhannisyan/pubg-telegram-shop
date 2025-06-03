@@ -215,7 +215,7 @@ router.post('/callback', async (req, res) => {
 
     // --- Notify manager about paid manual orders ---
     // Determine if there are manual products
-    const manualCategories = ['popularity_by_id', 'popularity_home_by_id', 'cars', 'costumes'];
+    const manualCategories = ['POPULARITY_ID', 'POPULARITY_HOME', 'CARS', 'COSTUMES'];
     const manualProducts = products.filter(p => manualCategories.includes(p.category));
     if (manualProducts.length > 0) {
       const itemsText = manualProducts.map(p =>
