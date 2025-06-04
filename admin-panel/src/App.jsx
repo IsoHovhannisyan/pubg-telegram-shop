@@ -17,6 +17,7 @@ import UcCodes from './pages/UcCodes';
 import Referrals from './pages/Referrals';
 import Settings from './pages/Settings';
 import Broadcast from './pages/Broadcast';
+import Payment from './pages/Payment';
 import axios from 'axios';
 import { FiSettings } from 'react-icons/fi';
 
@@ -147,6 +148,7 @@ export default function App() {
             <Route path="/uc-codes" element={<PrivateRoute><UcCodes /></PrivateRoute>} />
             <Route path="/broadcast" element={<PrivateRoute><Broadcast /></PrivateRoute>} />
             <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+            <Route path="/payment/:orderId" element={<Payment />} />
           </Routes>
         </main>
       </div>
