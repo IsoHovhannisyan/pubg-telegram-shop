@@ -31,6 +31,24 @@ const STATUS_COLORS = {
   unpaid: 'bg-gray-100 text-gray-800'
 };
 
+const STATUS_LABELS = {
+  delivered: "Выполнен",
+  pending: "В обработке",
+  manual_processing: "На ручной обработке",
+  error: "Ошибка",
+  unpaid: "Не оплачен"
+};
+
+const CATEGORY_LABELS = {
+  uc_by_id: "UC по ID",
+  uc_by_login: "UC по логину",
+  popularity_by_id: "Популярность по ID",
+  popularity_home_by_id: "Популярность дома",
+  cars: "Машины",
+  costumes: "Костюмы",
+  costume: "Костюмы"
+};
+
 const getStatusColor = (status) => {
   return STATUS_COLORS[status] || 'bg-gray-100 text-gray-800';
 };
@@ -177,13 +195,13 @@ export default function Dashboard() {
 
   const getCategoryLabel = (category) => {
     const labels = {
-      uc_by_id: "UC by ID",
-      uc_by_login: "UC by Login",
-      popularity_by_id: "Popularity by ID",
-      popularity_home_by_id: "Home Popularity",
-      cars: "Cars",
-      costumes: "X-Costumes",
-      costume: "X-Costumes"
+      uc_by_id: "UC по ID",
+      uc_by_login: "UC по логину",
+      popularity_by_id: "Популярность по ID",
+      popularity_home_by_id: "Популярность дома",
+      cars: "Машины",
+      costumes: "Костюмы",
+      costume: "Костюмы"
     };
     return labels[category] || category;
   };
@@ -301,7 +319,7 @@ export default function Dashboard() {
                 : 'bg-white text-gray-600 hover:bg-gray-100 hover:shadow-sm'
             }`}
           >
-            🛍 Sales by Category
+            🛍 Продажи по категориям
           </button>
         </div>
 
@@ -452,20 +470,20 @@ export default function Dashboard() {
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
                   <StatCard 
-                    label="💸 Period Revenue" 
+                    label="💸 Выручка за период" 
                     value={`${periodStats.period.total_revenue.toLocaleString()} ₽`}
-                    subtitle={`${periodStats.period.total_orders} orders`}
+                    subtitle={`${periodStats.period.total_orders} заказов`}
                   />
                   <StatCard 
-                    label="📦 Average Order Value" 
+                    label="📦 Средний чек" 
                     value={formatAverageCheck(periodStats.period.total_revenue, periodStats.period.total_orders)}
-                    subtitle="Average order amount"
+                    subtitle="Средняя сумма заказа"
                   />
                 </div>
 
                 {/* Category Breakdown */}
                 <div className="mb-8">
-                  <h4 className="text-lg font-semibold mb-4 text-gray-800">🛍 Revenue by Category</h4>
+                  <h4 className="text-lg font-semibold mb-4 text-gray-800">🛍 Выручка по категориям</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {periodStats.categories.map((cat, i) => {
                       const percent = ((cat.revenue / periodStats.period.total_revenue) * 100).toFixed(1);
@@ -476,7 +494,7 @@ export default function Dashboard() {
                         >
                           <div className="font-semibold text-gray-800 mb-2">{getCategoryLabel(cat.category)}</div>
                           <div className="text-sm text-gray-600 mb-3">
-                            <span className="font-medium">{cat.total}</span> items · <span className="font-medium">{cat.revenue.toLocaleString()} ₽</span>
+                            <span className="font-medium">{cat.total}</span> товаров · <span className="font-medium">{cat.revenue.toLocaleString()} ₽</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                             <div 
@@ -485,7 +503,7 @@ export default function Dashboard() {
                             ></div>
                           </div>
                           <div className="text-sm text-blue-600 font-medium">
-                            {percent}% of total revenue
+                            {percent}% от общей выручки
                           </div>
                         </div>
                       );
@@ -495,22 +513,22 @@ export default function Dashboard() {
 
                 {periodStats.monthly.length > 0 && (
                   <>
-                    <h4 className="text-lg font-semibold mb-4 text-gray-800">Monthly Statistics</h4>
+                    <h4 className="text-lg font-semibold mb-4 text-gray-800">Ежемесячная статистика</h4>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="text-left border-b">
-                            <th className="py-3 px-4 font-medium text-gray-600">Month</th>
-                            <th className="py-3 px-4 font-medium text-gray-600">Revenue</th>
-                            <th className="py-3 px-4 font-medium text-gray-600">Orders</th>
-                            <th className="py-3 px-4 font-medium text-gray-600">Average Order</th>
+                            <th className="py-3 px-4 font-medium text-gray-600">Месяц</th>
+                            <th className="py-3 px-4 font-medium text-gray-600">Выручка</th>
+                            <th className="py-3 px-4 font-medium text-gray-600">Заказы</th>
+                            <th className="py-3 px-4 font-medium text-gray-600">Средний чек</th>
                           </tr>
                         </thead>
                         <tbody>
                           {periodStats.monthly.map((month, i) => (
                             <tr key={i} className="border-b hover:bg-gray-50">
                               <td className="py-3 px-4">
-                                {new Date(month.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                {new Date(month.month).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}
                               </td>
                               <td className="py-3 px-4">{month.revenue.toLocaleString()} ₽</td>
                               <td className="py-3 px-4">{month.total_orders}</td>
@@ -581,7 +599,7 @@ export default function Dashboard() {
         {/* Categories Section */}
         {activeSection === 'categories' && (
           <section className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-xl font-semibold mb-6 text-gray-800">🛍 Sales by Category</h3>
+            <h3 className="text-xl font-semibold mb-6 text-gray-800">🛍 Продажи по категориям</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               {stats.salesByCategory.map((cat, i) => {
                 const percent = ((cat.revenue / stats.totalRevenue) * 100).toFixed(1);
@@ -592,7 +610,7 @@ export default function Dashboard() {
                   >
                     <div className="font-semibold text-gray-800 mb-2">{getCategoryLabel(cat.category)}</div>
                     <div className="text-sm text-gray-600 mb-3">
-                      <span className="font-medium">{cat.total}</span> items · <span className="font-medium">{cat.revenue.toLocaleString()} ₽</span>
+                      <span className="font-medium">{cat.total}</span> товаров · <span className="font-medium">{cat.revenue.toLocaleString()} ₽</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                       <div 
@@ -601,7 +619,7 @@ export default function Dashboard() {
                       ></div>
                     </div>
                     <div className="text-sm text-blue-600 font-medium">
-                      {percent}% of total revenue
+                      {percent}% от общей выручки
                     </div>
                   </div>
                 );
@@ -611,10 +629,10 @@ export default function Dashboard() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left border-b">
-                    <th className="py-3 px-4 font-medium text-gray-600">Category</th>
-                    <th className="py-3 px-4 font-medium text-gray-600">Items Sold</th>
-                    <th className="py-3 px-4 font-medium text-gray-600">Revenue (₽)</th>
-                    <th className="py-3 px-4 font-medium text-gray-600">% of Revenue</th>
+                    <th className="py-3 px-4 font-medium text-gray-600">Категория</th>
+                    <th className="py-3 px-4 font-medium text-gray-600">Продано товаров</th>
+                    <th className="py-3 px-4 font-medium text-gray-600">Выручка (₽)</th>
+                    <th className="py-3 px-4 font-medium text-gray-600">% от выручки</th>
                   </tr>
                 </thead>
                 <tbody>
