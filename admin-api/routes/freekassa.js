@@ -332,8 +332,7 @@ router.post('/link', async (req, res) => {
     oa: formattedAmount,
     o: orderId,
     s: signature,
-    currency: currency,
-    test: '1' // Enable test mode
+    currency: currency
   });
 
   // Use the correct Freekassa payment URL (per docs)
@@ -380,8 +379,7 @@ router.post('/sbp-link', async (req, res) => {
     o: orderId,
     s: signature,
     currency: currency,
-    i: sbpPaymentSystemId, // SBP system id
-    test: '1' // Enable test mode
+    i: sbpPaymentSystemId // SBP system id
   });
 
   // This link will redirect to the SBP QR code page (e.g., qr.nspk.ru)
