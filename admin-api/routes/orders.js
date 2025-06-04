@@ -455,4 +455,24 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
+// Public endpoint for SBP payment page: get order status and amount
+router.get('/public/:id/status', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await db.query('SELECT * FROM orders WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    const order = result.rows[0];
+    const products = Array.isArray(order.products)
+      ? order.products
+      : JSON.parse(order.products || '[]');
+    const amount = products.reduce((sum, p) => sum + (p.price * p.qty), 0);
+    return res.json({ status: order.status, amount });
+  } catch (err) {
+    console.error('❌ Ошибка получения статуса заказа:', err.message);
+    res.status(500).json({ error: 'Не удалось получить статус заказа' });
+  }
+});
+
 module.exports = router;

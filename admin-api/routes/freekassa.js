@@ -344,4 +344,49 @@ router.post('/link', async (req, res) => {
   return res.json({ link });
 });
 
+// SBP (СБП) payment link generator endpoint
+router.post('/sbp-link', async (req, res) => {
+  const { orderId, amount } = req.body;
+  const merchantId = process.env.FREEKASSA_MERCHANT_ID;
+  const secretWord1 = process.env.FREEKASSA_SECRET_1;
+  const currency = 'RUB'; // SBP only supports RUB
+
+  if (!merchantId || !secretWord1) {
+    console.error('Missing Freekassa credentials:', {
+      hasMerchantId: !!merchantId,
+      hasSecretWord: !!secretWord1
+    });
+    return res.status(500).json({ error: 'Freekassa merchant credentials not set' });
+  }
+  if (!orderId || !amount) {
+    console.error('Missing required parameters:', { orderId, amount });
+    return res.status(400).json({ error: 'Missing orderId or amount' });
+  }
+
+  // Ensure amount is a number and has 2 decimal places
+  const formattedAmount = Number(amount).toFixed(2);
+
+  // SBP payment system id for Freekassa (see docs, usually 23195, but confirm in your merchant panel)
+  const sbpPaymentSystemId = '23195';
+
+  // Signature format: merchant_id:amount:secret_word_1:currency:order_id
+  const signString = `${merchantId}:${formattedAmount}:${secretWord1}:${currency}:${orderId}`;
+  const signature = crypto.createHash('md5').update(signString).digest('hex');
+
+  // Build SBP payment link (see Freekassa docs for SBP)
+  const params = new URLSearchParams({
+    m: merchantId,
+    oa: formattedAmount,
+    o: orderId,
+    s: signature,
+    currency: currency,
+    i: sbpPaymentSystemId, // SBP system id
+    test: '1' // Enable test mode
+  });
+
+  // This link will redirect to the SBP QR code page (e.g., qr.nspk.ru)
+  const sbpLink = `https://pay.fk.money/?${params.toString()}`;
+  return res.json({ sbpLink });
+});
+
 module.exports = router;
