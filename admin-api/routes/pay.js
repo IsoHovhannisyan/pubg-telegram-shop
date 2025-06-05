@@ -1,13 +1,22 @@
 const express = require('express');
 const router = express.Router();
+const axios = require('axios');
 
 // Redirect endpoint: /pay/:orderId
 router.get('/pay/:orderId', async (req, res) => {
   const { orderId } = req.params;
   const amount = req.query.amount;
   
-  // Redirect to the frontend payment page
-  res.redirect(`https://pubg-telegram-shop.vercel.app/payment/${orderId}?amount=${amount}`);
+  // Call the existing /freekassa/link endpoint to get the payment link
+  try {
+    const apiUrl = process.env.API_URL || 'http://localhost:3001';
+    const response = await axios.post(`${apiUrl}/freekassa/link`, { orderId, amount });
+    const link = response.data.link;
+    if (!link) return res.status(404).send('Payment link not found');
+    return res.redirect(link);
+  } catch (err) {
+    return res.status(404).send('Order or payment link not found');
+  }
 });
 
 // Payment endpoint: /payment/:orderId
