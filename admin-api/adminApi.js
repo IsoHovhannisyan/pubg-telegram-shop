@@ -135,7 +135,7 @@ app.use('/freekassa', freekassaRoutes);
 
 app.use('/syNet', syNetRoutes);
 
-app.use('/', payRoutes);
+app.use('/pay', payRoutes);
 
 // ✅ Լսել պորտ
 const PORT = process.env.ADMIN_API_PORT || 3001;
