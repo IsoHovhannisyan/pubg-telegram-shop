@@ -176,7 +176,6 @@ async function registerOrder(ctx, pubgId, items, nickname) {
     if (manualItems.length > 0) {
       const manualList = manualItems.map(i => `• ${i.title || i.name} x${i.qty} — ${i.price * i.qty} ₽`).join('\n');
       finalMessage += `🧍 <b>Ручная доставка:</b>\n${manualList}\n`;
-      finalMessage += `💰 <b>Сумма:</b> ${manualSum} ₽\n`;
       finalMessage += `👉 После оплаты с вами свяжется менеджер\n`;
     }
 
@@ -192,9 +191,9 @@ async function registerOrder(ctx, pubgId, items, nickname) {
     // Determine the payment URL based on the order type
     let payUrl;
     if (autoItems.length > 0 && autoOrder) {
-      payUrl = `https://pubg-telegram-shop.onrender.com/pay/${autoOrder.id}?amount=${fullSum}`;
+      payUrl = `https://pubg-telegram-shop.vercel.app/payment/${autoOrder.id}?amount=${fullSum}`;
     } else if (manualItems.length > 0 && manualOrder) {
-      payUrl = `https://pubg-telegram-shop.onrender.com/pay/${manualOrder.id}?amount=${fullSum}`;
+      payUrl = `https://pubg-telegram-shop.vercel.app/payment/${manualOrder.id}?amount=${fullSum}`;
     }
 
     // Send the unified message with payment button if applicable
