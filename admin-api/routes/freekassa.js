@@ -345,46 +345,51 @@ router.post('/link', async (req, res) => {
 
 // SBP (СБП) payment link generator endpoint
 router.post('/sbp-link', async (req, res) => {
-  const { orderId, amount } = req.body;
-  const merchantId = process.env.FREEKASSA_MERCHANT_ID;
-  const secretWord1 = process.env.FREEKASSA_SECRET_1;
-  const currency = 'RUB'; // SBP only supports RUB
-
-  if (!merchantId || !secretWord1) {
-    console.error('Missing Freekassa credentials:', {
-      hasMerchantId: !!merchantId,
-      hasSecretWord: !!secretWord1
-    });
-    return res.status(500).json({ error: 'Freekassa merchant credentials not set' });
+  const { orderId, amount, email, ip } = req.body;
+  const shopId = parseInt(process.env.FREEKASSA_SHOP_ID, 10);
+  const apiKey = process.env.FREEKASSA_API_KEY;
+  const currency = 'RUB';
+  const paymentSystemId = 42; // SBP (confirm with /currencies if needed)
+  if (!shopId || !apiKey) {
+    return res.status(500).json({ error: 'Freekassa API credentials not set' });
   }
   if (!orderId || !amount) {
-    console.error('Missing required parameters:', { orderId, amount });
     return res.status(400).json({ error: 'Missing orderId or amount' });
   }
-
-  // Ensure amount is a number and has 2 decimal places
-  const formattedAmount = Number(amount).toFixed(2);
-
-  // SBP payment system id for Freekassa (see docs, usually 23195, but confirm in your merchant panel)
-  const sbpPaymentSystemId = '23195';
-
-  // Signature format: merchant_id:amount:secret_word_1:currency:order_id
-  const signString = `${merchantId}:${formattedAmount}:${secretWord1}:${currency}:${orderId}`;
-  const signature = crypto.createHash('md5').update(signString).digest('hex');
-
-  // Build SBP payment link (see Freekassa docs for SBP)
-  const params = new URLSearchParams({
-    m: merchantId,
-    oa: formattedAmount,
-    o: orderId,
-    s: signature,
-    currency: currency,
-    i: sbpPaymentSystemId // SBP system id
-  });
-
-  // This link will redirect to the SBP QR code page (e.g., qr.nspk.ru)
-  const sbpLink = `https://pay.fk.money/?${params.toString()}`;
-  return res.json({ sbpLink });
+  // Use a placeholder email if not provided
+  const safeEmail = email || 'sbp@yourshop.com';
+  // Use a placeholder IP if not provided
+  const safeIp = ip || '127.0.0.1';
+  const nonce = Date.now();
+  const data = {
+    shopId,
+    nonce,
+    paymentId: String(orderId),
+    i: paymentSystemId,
+    amount: Number(amount),
+    currency,
+    email: safeEmail,
+    ip: safeIp
+  };
+  // Generate signature
+  const crypto = require('crypto');
+  const sortedKeys = Object.keys(data).sort();
+  const values = sortedKeys.map(k => data[k]);
+  const str = values.join('|');
+  data.signature = crypto.createHmac('sha256', apiKey).update(str).digest('hex');
+  try {
+    const axios = require('axios');
+    const response = await axios.post('https://api.fk.life/v1/orders/create', data, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (response.data && response.data.type === 'success' && response.data.location) {
+      return res.json({ sbpLink: response.data.location });
+    } else {
+      return res.status(400).json({ error: 'Failed to create SBP order', details: response.data });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: 'SBP API error', details: err.message });
+  }
 });
 
 module.exports = router;
