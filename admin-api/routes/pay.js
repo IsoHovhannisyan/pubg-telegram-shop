@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 
-// Redirect endpoint: /pay/:orderId
-router.get('/pay/:orderId', async (req, res) => {
+// Redirect endpoint: /pay/:orderId or /payment/:orderId
+router.get(['/pay/:orderId', '/payment/:orderId'], async (req, res) => {
   const { orderId } = req.params;
   // Call the existing /freekassa/link endpoint to get the payment link
   try {
