@@ -13,6 +13,8 @@ const Payment = () => {
   const [processing, setProcessing] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState('card');
   const [overlayUrl, setOverlayUrl] = useState(null);
+  const [sbpDetails, setSbpDetails] = useState(null);
+  const [showSbpOverlay, setShowSbpOverlay] = useState(false);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -38,7 +40,17 @@ const Payment = () => {
       let endpoint, key;
       if (selectedMethod === 'sbp') {
         endpoint = `${process.env.REACT_APP_API_URL}/freekassa/sbp-link`;
-        key = 'sbpLink';
+        // Use a placeholder email for now; replace with real user email if available
+        const email = order && order.email ? order.email : 'test@yourshop.com';
+        const response = await axios.post(endpoint, { orderId, amount, email });
+        if (response.data && (response.data.bankName || response.data.phone || response.data.qrCodeData)) {
+          setSbpDetails(response.data);
+          setShowSbpOverlay(true);
+        } else {
+          setError('Failed to get SBP payment details');
+        }
+        setProcessing(false);
+        return;
       } else {
         endpoint = `${process.env.REACT_APP_API_URL}/freekassa/link`;
         key = 'link';
@@ -77,6 +89,52 @@ const Payment = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+      {/* SBP Payment Overlay */}
+      {showSbpOverlay && sbpDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full relative">
+            <button
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-2xl"
+              onClick={() => setShowSbpOverlay(false)}
+              aria-label="Close"
+            >
+              &times;
+            </button>
+            <h2 className="text-xl font-bold mb-4 text-center">Оплата через СБП</h2>
+            <div className="mb-4">
+              <div className="mb-2">
+                <span className="font-semibold">Банк:</span> {sbpDetails.bankName || '—'}
+              </div>
+              <div className="mb-2">
+                <span className="font-semibold">Телефон получателя:</span> <span className="select-all">{sbpDetails.phone || '—'}</span>
+              </div>
+              <div className="mb-2">
+                <span className="font-semibold">Сумма:</span> {sbpDetails.amount || amount} ₽
+              </div>
+              {sbpDetails.qrCodeData && (
+                <div className="mb-2 text-center">
+                  <img src={sbpDetails.qrCodeData} alt="QR Code" className="mx-auto w-40 h-40" />
+                  <div className="text-xs text-gray-500 mt-1">Отсканируйте QR-код в вашем банковском приложении</div>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col items-center gap-2 mt-4">
+              <button
+                className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                onClick={() => { setShowSbpOverlay(false); /* Polling can be added here */ }}
+              >
+                Я оплатил(а)
+              </button>
+              <button
+                className="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 mt-2"
+                onClick={() => setShowSbpOverlay(false)}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {overlayUrl && (
         <WebViewOverlay url={overlayUrl}>
           {/* You can show a loading spinner or a message here if you want */}
