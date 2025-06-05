@@ -455,11 +455,11 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
-// Public endpoint for SBP payment page: get order status and amount
-router.get('/public/:id/status', async (req, res) => {
-  const { id } = req.params;
+// Public order status endpoint for payment page
+router.get('/public/:orderId/status', async (req, res) => {
+  const { orderId } = req.params;
   try {
-    const result = await db.query('SELECT * FROM orders WHERE id = $1', [id]);
+    const result = await db.query('SELECT * FROM orders WHERE id = $1', [orderId]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Order not found' });
     }
@@ -468,24 +468,10 @@ router.get('/public/:id/status', async (req, res) => {
       ? order.products
       : JSON.parse(order.products || '[]');
     const amount = products.reduce((sum, p) => sum + (p.price * p.qty), 0);
-    return res.json({ status: order.status, amount });
+    return res.json({ id: order.id, status: order.status, amount });
   } catch (err) {
     console.error('❌ Ошибка получения статуса заказа:', err.message);
     res.status(500).json({ error: 'Не удалось получить статус заказа' });
-  }
-});
-
-// Public order status endpoint for payment page
-router.get('/public/:orderId/status', async (req, res) => {
-  const { orderId } = req.params;
-  try {
-    const result = await db.query('SELECT id, amount, status FROM orders WHERE id = $1', [orderId]);
-    if (!result.rows.length) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
