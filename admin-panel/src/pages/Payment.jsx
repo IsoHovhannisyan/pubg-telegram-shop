@@ -45,7 +45,7 @@ const Payment = () => {
       }
       const response = await axios.post(endpoint, { orderId, amount });
       if (response.data && response.data[key]) {
-        setOverlayUrl(response.data[key]);
+        window.open(response.data[key], '_blank', 'noopener,noreferrer');
       } else {
         setError('Failed to get payment link');
       }
