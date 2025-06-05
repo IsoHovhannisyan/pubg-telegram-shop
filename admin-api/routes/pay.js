@@ -1,45 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const path = require('path');
 
-// Redirect endpoint: /pay/:orderId
+// Serve the payment page
 router.get('/pay/:orderId', async (req, res) => {
-  const { orderId } = req.params;
-  const amount = req.query.amount;
-  
-  // Call the existing /freekassa/link endpoint to get the payment link
+  res.sendFile(path.join(__dirname, '../../admin-panel/build/index.html'));
+});
+
+// API endpoint to get payment link (will be called by frontend)
+router.post('/api/payment/link', async (req, res) => {
+  const { orderId, amount } = req.body;
   try {
     const apiUrl = process.env.API_URL || 'http://localhost:3001';
     const response = await axios.post(`${apiUrl}/freekassa/link`, { orderId, amount });
-    const link = response.data.link;
-    if (!link) return res.status(404).send('Payment link not found');
-    return res.redirect(link);
+    res.json(response.data);
   } catch (err) {
-    return res.status(404).send('Order or payment link not found');
+    res.status(500).json({ error: 'Failed to get payment link' });
   }
-});
-
-// Payment endpoint: /payment/:orderId
-router.get('/payment/:orderId', async (req, res) => {
-  const { orderId } = req.params;
-  const amount = req.query.amount;
-  
-  // Return the payment page HTML
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>Payment</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      </head>
-      <body>
-        <div id="root"></div>
-        <script>
-          window.location.href = 'https://pubg-telegram-shop.vercel.app/payment/${orderId}?amount=${amount}';
-        </script>
-      </body>
-    </html>
-  `);
 });
 
 module.exports = router; 
