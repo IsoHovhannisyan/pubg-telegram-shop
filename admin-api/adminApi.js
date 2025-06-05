@@ -43,6 +43,7 @@ app.use('/admin', authRoutes);
 app.use("/admin", setupAdminRoute); // ✅ Login route
 app.use('/admin/products', productRoutes);   // Admin համար՝ POST, կարգավորում
 app.use('/products', productRoutes); // Բոտի համար՝ GET        
+app.use('/admin/orders/public', orderRoutes);
 app.use('/admin/orders', verifyToken, orderRoutes);
 app.use('/admin/orders', orderExtraRoutes);
 app.use('/cart', cartRoutes);
