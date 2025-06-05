@@ -8,9 +8,7 @@
     "start:api": "npm run dev --prefix admin-api",
     "start:front": "npm start --prefix admin-panel",
     "install:all": "npm install && npm install --prefix admin-api && npm install --prefix admin-panel",
-    "dev": "concurrently -k -n \"BOT,API,FRONT\" -c \"green,cyan,magenta\" \"node bot/bot.js\" \"npm run dev --prefix admin-api\" \"npm start --prefix admin-panel\"",
-    "build": "npm run build --prefix admin-panel",
-    "build:all": "npm run install:all && npm run build"
+    "dev": "concurrently -k -n \"BOT,API,FRONT\" -c \"green,cyan,magenta\" \"node bot/bot.js\" \"npm run dev --prefix admin-api\" \"npm start --prefix admin-panel\""
   },
   "keywords": [],
   "author": "",

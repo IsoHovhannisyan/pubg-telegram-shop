@@ -4,9 +4,7 @@
   "main": "adminApi.js",
   "scripts": {
     "start": "node adminApi.js",
-    "dev": "nodemon adminApi.js",
-    "build": "cd ../admin-panel && npm run build",
-    "prestart": "npm run build"
+    "dev": "nodemon adminApi.js"
   },
   "keywords": [],
   "author": "",
