@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Оплата через СБП</title>
+  <style>
+    body { font-family: Arial; background: #222; color: #fff; text-align: center; }
+    .pay-box { background: #333; padding: 30px; border-radius: 10px; display: inline-block; margin-top: 50px; }
+    img { margin: 20px 0; }
+    button { padding: 10px 20px; font-size: 18px; }
+  </style>
+</head>
+<body>
+  <div class="pay-box">
+    <h2>Оплата через СБП</h2>
+    <div id="amount">Сумма: 1000 ₽</div>
+    <div id="qr"></div>
+    <button id="payBtn">Перейти к оплате</button>
+  </div>
+  <script>
+    let paymentUrl = '';
+    fetch('http://localhost:3002/api/create-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 1000 })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.location) {
+        paymentUrl = data.location;
+        document.getElementById('qr').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(paymentUrl)}" alt="QR">`;
+      } else {
+        document.getElementById('qr').innerText = 'Ошибка создания платежа';
+      }
+    });
+
+    document.getElementById('payBtn').onclick = () => {
+      if (paymentUrl) window.open(paymentUrl, '_blank');
+    };
+  </script>
+</body>
+</html> 
