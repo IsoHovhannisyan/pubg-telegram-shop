@@ -37,10 +37,10 @@ const Payment = () => {
     try {
       let endpoint, key;
       if (selectedMethod === 'sbp') {
-        endpoint = '/api/freekassa/sbp-link';
+        endpoint = `${process.env.REACT_APP_API_URL}/freekassa/sbp-link`;
         key = 'sbpLink';
       } else {
-        endpoint = '/api/freekassa/link';
+        endpoint = `${process.env.REACT_APP_API_URL}/freekassa/link`;
         key = 'link';
       }
       const response = await axios.post(endpoint, { orderId, amount });
