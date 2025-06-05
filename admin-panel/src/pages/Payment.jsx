@@ -17,7 +17,7 @@ const Payment = () => {
   useEffect(() => {
     const fetchOrder = async () => {
       try {
-        const response = await API.get(`/admin/orders/public/${orderId}/status`);
+        const response = await API.get(`/admin/orders/public/public/${orderId}/status`);
         setOrder(response.data);
       } catch (err) {
         setError('Failed to load order details');
