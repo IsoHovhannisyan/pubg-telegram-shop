@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const axios = require('axios');
 const path = require('path');
+const axios = require('axios');
 
-// Serve the payment page
-router.get('/pay/:orderId', async (req, res) => {
+// Serve the React app for all routes
+router.get('/pay/:orderId', (req, res) => {
   res.sendFile(path.join(__dirname, '../../admin-panel/build/index.html'));
 });
 
-// API endpoint to get payment link (will be called by frontend)
+// API endpoint to get payment link
 router.post('/api/payment/link', async (req, res) => {
   const { orderId, amount } = req.body;
   try {
@@ -19,5 +19,8 @@ router.post('/api/payment/link', async (req, res) => {
     res.status(500).json({ error: 'Failed to get payment link' });
   }
 });
+
+// Serve static files from the React app
+router.use(express.static(path.join(__dirname, '../../admin-panel/build')));
 
 module.exports = router; 
