@@ -4,6 +4,7 @@ const router = express.Router();
 const { Pool } = require('pg');
 const bot = require('../../bot/instance');
 const db = require('../../bot/db/connect');
+const axios = require('axios');
 
 // Set up your database connection (adjust as needed)
 const pool = new Pool({
@@ -346,20 +347,29 @@ router.post('/link', async (req, res) => {
 // SBP (СБП) payment link generator endpoint
 router.post('/sbp-link', async (req, res) => {
   const { orderId, amount, email, ip } = req.body;
-  const shopId = parseInt(process.env.FREEKASSA_SHOP_ID, 10);
+  const shopId = parseInt(process.env.FREEKASSA_MERCHANT_ID, 10);
   const apiKey = process.env.FREEKASSA_API_KEY;
   const currency = 'RUB';
-  const paymentSystemId = 42; // SBP (confirm with /currencies if needed)
+  const paymentSystemId = 42; // SBP
+
   if (!shopId || !apiKey) {
+    console.error('Missing Freekassa API credentials:', { 
+      hasShopId: !!shopId, 
+      hasApiKey: !!apiKey 
+    });
     return res.status(500).json({ error: 'Freekassa API credentials not set' });
   }
+
   if (!orderId || !amount) {
+    console.error('Missing required parameters:', { orderId, amount });
     return res.status(400).json({ error: 'Missing orderId or amount' });
   }
+
   // Use a placeholder email if not provided
   const safeEmail = email || 'sbp@yourshop.com';
   // Use a placeholder IP if not provided
   const safeIp = ip || '127.0.0.1';
+
   const nonce = Date.now();
   const data = {
     shopId,
@@ -371,24 +381,40 @@ router.post('/sbp-link', async (req, res) => {
     email: safeEmail,
     ip: safeIp
   };
+
   // Generate signature
-  const crypto = require('crypto');
   const sortedKeys = Object.keys(data).sort();
   const values = sortedKeys.map(k => data[k]);
   const str = values.join('|');
   data.signature = crypto.createHmac('sha256', apiKey).update(str).digest('hex');
+
   try {
-    const axios = require('axios');
     const response = await axios.post('https://api.fk.life/v1/orders/create', data, {
       headers: { 'Content-Type': 'application/json' }
     });
+
     if (response.data && response.data.type === 'success' && response.data.location) {
-      return res.json({ sbpLink: response.data.location });
+      // Get payment details from the response
+      const paymentDetails = {
+        paymentUrl: response.data.location,
+        orderId: response.data.orderId,
+        orderHash: response.data.orderHash
+      };
+
+      return res.json(paymentDetails);
     } else {
-      return res.status(400).json({ error: 'Failed to create SBP order', details: response.data });
+      console.error('Failed to create SBP order:', response.data);
+      return res.status(400).json({ 
+        error: 'Failed to create SBP order', 
+        details: response.data 
+      });
     }
   } catch (err) {
-    return res.status(500).json({ error: 'SBP API error', details: err.message });
+    console.error('SBP API error:', err.message);
+    return res.status(500).json({ 
+      error: 'SBP API error', 
+      details: err.message 
+    });
   }
 });
 

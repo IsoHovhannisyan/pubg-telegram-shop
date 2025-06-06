@@ -12,9 +12,8 @@ const Payment = () => {
   const [error, setError] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState('card');
-  const [overlayUrl, setOverlayUrl] = useState(null);
-  const [sbpDetails, setSbpDetails] = useState(null);
-  const [showSbpOverlay, setShowSbpOverlay] = useState(false);
+  const [paymentDetails, setPaymentDetails] = useState(null);
+  const [showPaymentOverlay, setShowPaymentOverlay] = useState(false);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -37,32 +36,29 @@ const Payment = () => {
     setProcessing(true);
     setError(null);
     try {
-      let endpoint, key;
+      let endpoint;
       if (selectedMethod === 'sbp') {
         endpoint = `${process.env.REACT_APP_API_URL}/freekassa/sbp-link`;
-        // Use a placeholder email for now; replace with real user email if available
         const email = order && order.email ? order.email : 'test@yourshop.com';
         const response = await axios.post(endpoint, { orderId, amount, email });
-        if (response.data && (response.data.bankName || response.data.phone || response.data.qrCodeData)) {
-          setSbpDetails(response.data);
-          setShowSbpOverlay(true);
+        if (response.data && response.data.paymentUrl) {
+          setPaymentDetails(response.data);
+          setShowPaymentOverlay(true);
         } else {
           setError('Failed to get SBP payment details');
         }
-        setProcessing(false);
-        return;
       } else {
         endpoint = `${process.env.REACT_APP_API_URL}/freekassa/link`;
-        key = 'link';
-      }
-      const response = await axios.post(endpoint, { orderId, amount });
-      if (response.data && response.data[key]) {
-        window.open(response.data[key], '_blank', 'noopener,noreferrer');
-      } else {
-        setError('Failed to get payment link');
+        const response = await axios.post(endpoint, { orderId, amount });
+        if (response.data && response.data.link) {
+          window.open(response.data.link, '_blank', 'noopener,noreferrer');
+        } else {
+          setError('Failed to get payment link');
+        }
       }
     } catch (err) {
-      setError('Failed to get payment link');
+      setError('Failed to process payment');
+      console.error('Payment error:', err);
     } finally {
       setProcessing(false);
     }
@@ -89,45 +85,72 @@ const Payment = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      {/* SBP Payment Overlay */}
-      {showSbpOverlay && sbpDetails && (
+      {/* Payment Overlay */}
+      {showPaymentOverlay && paymentDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
           <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full relative">
             <button
               className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-2xl"
-              onClick={() => setShowSbpOverlay(false)}
+              onClick={() => setShowPaymentOverlay(false)}
               aria-label="Close"
             >
               &times;
             </button>
             <h2 className="text-xl font-bold mb-4 text-center">Оплата через СБП</h2>
             <div className="mb-4">
-              <div className="mb-2">
-                <span className="font-semibold">Банк:</span> {sbpDetails.bankName || '—'}
+              <div className="mb-4 text-center">
+                <p className="text-gray-600 mb-2">Сумма к оплате:</p>
+                <p className="text-2xl font-bold text-gray-800">{amount} ₽</p>
               </div>
-              <div className="mb-2">
-                <span className="font-semibold">Телефон получателя:</span> <span className="select-all">{sbpDetails.phone || '—'}</span>
+              <div className="mb-4">
+                <p className="text-sm text-gray-500 mb-2">Для оплаты:</p>
+                <ol className="list-decimal list-inside text-gray-700 space-y-2">
+                  <li>Откройте приложение вашего банка</li>
+                  <li>Выберите оплату по QR-коду или СБП</li>
+                  <li>Отсканируйте QR-код или введите данные получателя</li>
+                  <li>Проверьте сумму и подтвердите оплату</li>
+                </ol>
               </div>
-              <div className="mb-2">
-                <span className="font-semibold">Сумма:</span> {sbpDetails.amount || amount} ₽
-              </div>
-              {sbpDetails.qrCodeData && (
-                <div className="mb-2 text-center">
-                  <img src={sbpDetails.qrCodeData} alt="QR Code" className="mx-auto w-40 h-40" />
-                  <div className="text-xs text-gray-500 mt-1">Отсканируйте QR-код в вашем банковском приложении</div>
+              {paymentDetails.paymentUrl && (
+                <div className="mb-4 text-center">
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(paymentDetails.paymentUrl)}`} 
+                    alt="QR Code" 
+                    className="mx-auto w-48 h-48"
+                  />
+                  <div className="text-xs text-gray-500 mt-2">
+                    Отсканируйте QR-код в вашем банковском приложении
+                  </div>
                 </div>
               )}
             </div>
             <div className="flex flex-col items-center gap-2 mt-4">
               <button
                 className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                onClick={() => { setShowSbpOverlay(false); /* Polling can be added here */ }}
+                onClick={() => {
+                  setShowPaymentOverlay(false);
+                  // Start polling for payment status
+                  const pollInterval = setInterval(async () => {
+                    try {
+                      const response = await API.get(`/admin/orders/public/public/${orderId}/status`);
+                      if (response.data.status === 'paid') {
+                        clearInterval(pollInterval);
+                        window.location.href = '/success';
+                      }
+                    } catch (err) {
+                      console.error('Error polling payment status:', err);
+                    }
+                  }, 5000); // Poll every 5 seconds
+                  
+                  // Clear interval after 5 minutes
+                  setTimeout(() => clearInterval(pollInterval), 300000);
+                }}
               >
                 Я оплатил(а)
               </button>
               <button
                 className="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 mt-2"
-                onClick={() => setShowSbpOverlay(false)}
+                onClick={() => setShowPaymentOverlay(false)}
               >
                 Отмена
               </button>
@@ -135,30 +158,27 @@ const Payment = () => {
           </div>
         </div>
       )}
-      {overlayUrl && (
-        <WebViewOverlay url={overlayUrl}>
-          {/* You can show a loading spinner or a message here if you want */}
-        </WebViewOverlay>
-      )}
+
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-8 text-center">
-            <h1 className="text-2xl font-bold text-white mb-2">Payment Details</h1>
-            <p className="text-blue-100">Order #{orderId}</p>
+            <h1 className="text-2xl font-bold text-white mb-2">Оплата заказа</h1>
+            <p className="text-blue-100">Заказ #{orderId}</p>
           </div>
 
           {/* Content */}
           <div className="p-6">
             {/* Amount */}
             <div className="mb-6 text-center">
-              <p className="text-gray-500 mb-2">Amount to Pay</p>
+              <p className="text-gray-500 mb-2">Сумма к оплате</p>
               <p className="text-3xl font-bold text-gray-800">{amount} ₽</p>
             </div>
 
             {/* Payment Methods */}
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-gray-700 mb-4">Select Payment Method</h2>
+              <h2 className="text-lg font-semibold text-gray-700 mb-4">Выберите способ оплаты</h2>
+              
               {/* Bank Cards */}
               <div
                 className={`bg-gray-50 rounded-lg p-4 hover:bg-gray-100 cursor-pointer transition-colors ${selectedMethod === 'card' ? 'ring-2 ring-blue-400' : ''}`}
@@ -171,61 +191,57 @@ const Payment = () => {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-medium text-gray-800">Bank Cards</h3>
-                    <p className="text-sm text-gray-500">Visa, Mastercard, MIR</p>
+                    <h3 className="font-medium text-gray-800">Банковские карты</h3>
+                    <p className="text-sm text-gray-500">Visa, Mastercard, МИР</p>
                   </div>
                 </div>
               </div>
+
               {/* SBP */}
               <div
-                className={`bg-gray-50 rounded-lg p-4 hover:bg-gray-100 cursor-pointer transition-colors ${selectedMethod === 'sbp' ? 'ring-2 ring-green-400' : ''}`}
+                className={`bg-gray-50 rounded-lg p-4 hover:bg-gray-100 cursor-pointer transition-colors ${selectedMethod === 'sbp' ? 'ring-2 ring-blue-400' : ''}`}
                 onClick={() => setSelectedMethod('sbp')}
               >
                 <div className="flex items-center">
                   <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
                     <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-medium text-gray-800">SBP</h3>
-                    <p className="text-sm text-gray-500">Fast Bank Transfer</p>
-                  </div>
-                </div>
-              </div>
-              {/* Other Methods (not implemented, just UI) */}
-              <div className="bg-gray-50 rounded-lg p-4 cursor-not-allowed opacity-50">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
-                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-800">Other Methods</h3>
-                    <p className="text-sm text-gray-500">Electronic Wallets, etc.</p>
+                    <h3 className="font-medium text-gray-800">СБП</h3>
+                    <p className="text-sm text-gray-500">Быстрый перевод по номеру телефона</p>
                   </div>
                 </div>
               </div>
             </div>
+
             {/* Pay Button */}
             <button
-              className="mt-8 w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+              className={`w-full mt-6 py-3 px-4 rounded-lg text-white font-medium transition-colors ${
+                processing
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+              }`}
               onClick={handlePay}
               disabled={processing}
             >
-              {processing ? 'Processing...' : 'Pay'}
+              {processing ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Обработка...
+                </div>
+              ) : (
+                'Оплатить'
+              )}
             </button>
-            {/* Security Notice */}
-            <div className="mt-8 text-center">
-              <div className="flex items-center justify-center text-gray-500 mb-2">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                <span>Secure Payment</span>
+
+            {/* Error Message */}
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+                {error}
               </div>
-              <p className="text-sm text-gray-500">Your payment information is encrypted and secure</p>
-            </div>
+            )}
           </div>
         </div>
       </div>
