@@ -241,7 +241,16 @@ const Payment = () => {
           <div className="bg-white rounded-2xl shadow-2xl max-w-xs w-full p-8 flex flex-col items-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
             <div className="text-lg font-semibold text-gray-800 mb-2 text-center">Ожидаем подтверждения оплаты...</div>
-            <div className="text-gray-500 text-center text-sm mb-2">Обычно это занимает не более 1-2 минут.</div>
+            <div className="text-gray-500 text-center text-sm mb-4">Обычно это занимает не более 1-2 минут.</div>
+            <button
+              className="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-xl hover:bg-gray-300 font-semibold mt-2"
+              onClick={() => {
+                setWaitingForConfirmation(false);
+                setShowPaymentOverlay(true);
+              }}
+            >
+              Отмена
+            </button>
           </div>
         </div>
       )}
@@ -261,7 +270,7 @@ const Payment = () => {
               Попробовать ещё раз
             </button>
             <a
-              href="https://t.me/YourManagerBot"
+              href="https://t.me/inv1s_shop"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full block text-center bg-gray-200 text-gray-700 py-2 px-4 rounded-xl hover:bg-gray-300 font-semibold"
