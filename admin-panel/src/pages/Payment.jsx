@@ -158,7 +158,7 @@ const Payment = () => {
       </div>
       {showPaymentOverlay && paymentDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full relative border border-gray-200 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full relative border border-gray-200 animate-fade-in flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
             <button
               className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-2xl"
               onClick={() => setShowPaymentOverlay(false)}
@@ -166,35 +166,37 @@ const Payment = () => {
             >
               &times;
             </button>
-            <h2 className="text-2xl font-bold mb-4 text-center text-gray-800">Оплата через СБП</h2>
-            <div className="mb-4">
-              <div className="mb-4 text-center">
-                <p className="text-gray-500 mb-2">Сумма к оплате:</p>
-                <p className="text-2xl font-bold text-gray-800">{amount} ₽</p>
-              </div>
+            <div className="overflow-y-auto px-2 sm:px-0 pt-2 pb-4 flex-1">
+              <h2 className="text-2xl font-bold mb-4 text-center text-gray-800">Оплата через СБП</h2>
               <div className="mb-4">
-                <p className="text-sm text-gray-500 mb-2">Для оплаты:</p>
-                <ol className="list-decimal list-inside text-gray-700 space-y-2">
-                  <li>Откройте приложение вашего банка</li>
-                  <li>Выберите оплату по QR-коду или СБП</li>
-                  <li>Отсканируйте QR-код или введите данные получателя</li>
-                  <li>Проверьте сумму и подтвердите оплату</li>
-                </ol>
-              </div>
-              {paymentDetails.paymentUrl && (
                 <div className="mb-4 text-center">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(paymentDetails.paymentUrl)}`}
-                    alt="QR Code"
-                    className="mx-auto w-56 h-56 rounded-xl border border-gray-200 shadow"
-                  />
-                  <div className="text-xs text-gray-500 mt-2">
-                    Отсканируйте QR-код в вашем банковском приложении
-                  </div>
+                  <p className="text-gray-500 mb-2">Сумма к оплате:</p>
+                  <p className="text-2xl font-bold text-gray-800">{amount} ₽</p>
                 </div>
-              )}
+                <div className="mb-4">
+                  <p className="text-sm text-gray-500 mb-2">Для оплаты:</p>
+                  <ol className="list-decimal list-inside text-gray-700 space-y-2">
+                    <li>Откройте приложение вашего банка</li>
+                    <li>Выберите оплату по QR-коду или СБП</li>
+                    <li>Отсканируйте QR-код или введите данные получателя</li>
+                    <li>Проверьте сумму и подтвердите оплату</li>
+                  </ol>
+                </div>
+                {paymentDetails.paymentUrl && (
+                  <div className="mb-4 text-center">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(paymentDetails.paymentUrl)}`}
+                      alt="QR Code"
+                      className="mx-auto w-56 h-56 rounded-xl border border-gray-200 shadow"
+                    />
+                    <div className="text-xs text-gray-500 mt-2">
+                      Отсканируйте QR-код в вашем банковском приложении
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex flex-col items-center gap-2 mt-4">
+            <div className="flex flex-col items-center gap-2 p-2 pt-0 bg-white border-t border-gray-100 sticky bottom-0 z-10">
               <button
                 className="w-full bg-green-600 text-white py-3 px-4 rounded-xl hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-lg font-semibold transition-all"
                 onClick={() => {
