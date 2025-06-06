@@ -346,23 +346,56 @@ router.post('/link', async (req, res) => {
 
 // SBP (СБП) payment link generator endpoint
 router.post('/sbp-link', async (req, res) => {
+  console.log('🔍 SBP Payment Request:', {
+    body: req.body,
+    headers: req.headers,
+    timestamp: new Date().toISOString()
+  });
+
   const { orderId, amount, email, ip } = req.body;
   const shopId = parseInt(process.env.FREEKASSA_MERCHANT_ID, 10);
   const apiKey = process.env.FREEKASSA_API_KEY;
   const currency = 'RUB';
   const paymentSystemId = 42; // SBP
 
+  console.log('🔧 Environment Check:', {
+    shopId,
+    hasApiKey: !!apiKey,
+    merchantId: process.env.FREEKASSA_MERCHANT_ID,
+    secret1: process.env.FREEKASSA_SECRET_1 ? 'Set' : 'Not Set',
+    secret2: process.env.FREEKASSA_SECRET_2 ? 'Set' : 'Not Set'
+  });
+
   if (!shopId || !apiKey) {
-    console.error('Missing Freekassa API credentials:', { 
+    console.error('❌ Missing Freekassa API credentials:', { 
       hasShopId: !!shopId, 
-      hasApiKey: !!apiKey 
+      hasApiKey: !!apiKey,
+      shopId,
+      apiKeyLength: apiKey ? apiKey.length : 0
     });
-    return res.status(500).json({ error: 'Freekassa API credentials not set' });
+    return res.status(500).json({ 
+      error: 'Freekassa API credentials not set',
+      details: {
+        hasShopId: !!shopId,
+        hasApiKey: !!apiKey
+      }
+    });
   }
 
   if (!orderId || !amount) {
-    console.error('Missing required parameters:', { orderId, amount });
-    return res.status(400).json({ error: 'Missing orderId or amount' });
+    console.error('❌ Missing required parameters:', { 
+      orderId, 
+      amount,
+      hasOrderId: !!orderId,
+      hasAmount: !!amount
+    });
+    return res.status(400).json({ 
+      error: 'Missing orderId or amount',
+      details: {
+        hasOrderId: !!orderId,
+        hasAmount: !!amount
+      }
+    });
   }
 
   // Use a placeholder email if not provided
@@ -382,15 +415,35 @@ router.post('/sbp-link', async (req, res) => {
     ip: safeIp
   };
 
+  console.log('📦 Request Data:', {
+    ...data,
+    apiKeyLength: apiKey.length
+  });
+
   // Generate signature
   const sortedKeys = Object.keys(data).sort();
   const values = sortedKeys.map(k => data[k]);
   const str = values.join('|');
+  console.log('🔑 Signature Generation:', {
+    sortedKeys,
+    values,
+    concatenatedString: str
+  });
+
   data.signature = crypto.createHmac('sha256', apiKey).update(str).digest('hex');
+  console.log('🔐 Generated Signature:', data.signature);
 
   try {
+    console.log('🚀 Sending request to Freekassa API...');
     const response = await axios.post('https://api.fk.life/v1/orders/create', data, {
       headers: { 'Content-Type': 'application/json' }
+    });
+
+    console.log('📥 Freekassa API Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      data: response.data,
+      headers: response.headers
     });
 
     if (response.data && response.data.type === 'success' && response.data.location) {
@@ -401,19 +454,43 @@ router.post('/sbp-link', async (req, res) => {
         orderHash: response.data.orderHash
       };
 
+      console.log('✅ Payment details generated:', paymentDetails);
       return res.json(paymentDetails);
     } else {
-      console.error('Failed to create SBP order:', response.data);
+      console.error('❌ Failed to create SBP order:', {
+        responseData: response.data,
+        expectedFields: {
+          hasType: !!response.data?.type,
+          hasLocation: !!response.data?.location,
+          type: response.data?.type,
+          location: response.data?.location
+        }
+      });
       return res.status(400).json({ 
         error: 'Failed to create SBP order', 
         details: response.data 
       });
     }
   } catch (err) {
-    console.error('SBP API error:', err.message);
+    console.error('❌ SBP API error:', {
+      message: err.message,
+      response: err.response?.data,
+      status: err.response?.status,
+      headers: err.response?.headers,
+      config: {
+        url: err.config?.url,
+        method: err.config?.method,
+        headers: err.config?.headers,
+        data: err.config?.data
+      }
+    });
     return res.status(500).json({ 
       error: 'SBP API error', 
-      details: err.message 
+      details: {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      }
     });
   }
 });
