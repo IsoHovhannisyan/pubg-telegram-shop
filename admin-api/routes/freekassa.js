@@ -362,6 +362,7 @@ router.post('/sbp-link', async (req, res) => {
   const apiKey = process.env.FREEKASSA_API_KEY;
   const currency = 'RUB';
   const paymentSystemId = 42; // SBP
+  console.log('[SBP] Setting paymentSystemId (i) to', paymentSystemId);
 
   console.log('🔧 Environment Check:', {
     shopId,
@@ -419,11 +420,7 @@ router.post('/sbp-link', async (req, res) => {
     email: safeEmail,
     ip: safeIp
   };
-
-  console.log('📦 Request Data:', {
-    ...data,
-    apiKeyLength: apiKey.length
-  });
+  console.log('[SBP] Data object constructed with i =', data.i, 'Full data:', data);
 
   // Generate signature
   const sortedKeys = Object.keys(data).sort();

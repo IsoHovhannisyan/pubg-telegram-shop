@@ -43,7 +43,9 @@ const Payment = () => {
       if (selectedMethod === 'sbp') {
         endpoint = `${process.env.REACT_APP_API_URL}/freekassa/sbp-link`;
         const email = order && order.email ? order.email : 'test@yourshop.com';
+        console.log('[SBP][Frontend] Sending SBP payment request:', { endpoint, orderId, amount, email });
         const response = await axios.post(endpoint, { orderId, amount, email });
+        console.log('[SBP][Frontend] Received SBP payment response:', response.data);
         if (response.data && (response.data.sbpUrl || response.data.paymentUrl)) {
           setPaymentDetails({
             ...response.data,
