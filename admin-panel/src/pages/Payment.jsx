@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import WebViewOverlay from '../components/WebViewOverlay';
 import API from '../api';
 import axios from 'axios';
+import { Button } from '@mui/material';
 
 const Payment = () => {
   const { orderId } = useParams();
@@ -216,25 +217,24 @@ const Payment = () => {
               </div>
             </div>
 
-            {/* Pay Button */}
-            <button
-              className={`w-full mt-6 py-3 px-4 rounded-lg text-white font-medium transition-colors ${
-                processing
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
-              }`}
+            {/* ... перед кнопками оплаты ... */}
+            {selectedMethod === 'sbp' && amount < 1000 && (
+              <div style={{ color: '#e53935', marginBottom: 16, fontWeight: 500, textAlign: 'center' }}>
+                ⚠️ Оплата через СБП доступна только для сумм от 1000₽ и выше.
+              </div>
+            )}
+
+            {/* ... кнопки оплаты ... */}
+            <Button
+              variant="contained"
+              color="primary"
+              fullWidth
+              style={{ marginBottom: 12 }}
               onClick={handlePay}
-              disabled={processing}
+              disabled={processing || (selectedMethod === 'sbp' && amount < 1000)}
             >
-              {processing ? (
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  Обработка...
-                </div>
-              ) : (
-                'Оплатить'
-              )}
-            </button>
+              {selectedMethod === 'sbp' ? 'Оплатить через СБП' : 'Оплатить картой'}
+            </Button>
 
             {/* Error Message */}
             {error && (
