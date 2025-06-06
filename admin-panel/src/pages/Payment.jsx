@@ -47,7 +47,7 @@ const Payment = () => {
         if (response.data && (response.data.sbpUrl || response.data.paymentUrl)) {
           setPaymentDetails({
             ...response.data,
-            url: response.data.sbpUrl || response.data.paymentUrl // ✅ Ահա այստեղ ենք օգտագործում ճիշտ հղումը
+            url: response.data.sbpUrl || response.data.paymentUrl
           });
           setShowPaymentOverlay(true);
         } else {
@@ -55,9 +55,12 @@ const Payment = () => {
         }
       } else {
         endpoint = `${process.env.REACT_APP_API_URL}/freekassa/link`;
-        const response = await axios.post(endpoint, { orderId, amount });
+        const response = await axios.post(endpoint, { orderId, amount, paymentMethod: 'card' });
         if (response.data && response.data.link) {
-          window.open(response.data.link, '_blank', 'noopener,noreferrer');
+          setPaymentDetails({
+            paymentUrl: response.data.link
+          });
+          setShowPaymentOverlay(true);
         } else {
           setError('Failed to get payment link');
         }
@@ -101,64 +104,61 @@ const Payment = () => {
             <p className="text-gray-400 mb-1 text-base">Сумма к оплате</p>
             <p className="text-4xl font-extrabold text-gray-800 tracking-wide">{amount} ₽</p>
           </div>
-          <div className="space-y-6 mb-8">
-            <h2 className="text-lg font-semibold text-gray-700 mb-2">Выберите способ оплаты</h2>
-            <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
-              <div
-                className={`flex-1 bg-gray-50 rounded-xl p-5 hover:bg-blue-50 cursor-pointer transition-all border-2 ${selectedMethod === 'card' ? 'border-blue-400 shadow-md' : 'border-transparent'}`}
+          <div className="mb-8">
+            <p className="text-gray-600 mb-4 text-center">Выберите способ оплаты</p>
+            <div className="grid grid-cols-2 gap-4">
+              <button
                 onClick={() => setSelectedMethod('card')}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  selectedMethod === 'card'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-blue-300'
+                }`}
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800 text-lg">Банковские карты</h3>
-                    <p className="text-sm text-gray-500">Visa, Mastercard, МИР</p>
-                  </div>
+                <div className="flex flex-col items-center">
+                  <svg className="w-8 h-8 mb-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 4H4C2.89543 4 2 4.89543 2 6V18C2 19.1046 2.89543 20 4 20H20C21.1046 20 22 19.1046 22 18V6C22 4.89543 21.1046 4 20 4Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M2 10H22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="text-sm font-medium">Банковская карта</span>
                 </div>
-              </div>
-              <div
-                className={`flex-1 bg-gray-50 rounded-xl p-5 hover:bg-green-50 cursor-pointer transition-all border-2 ${selectedMethod === 'sbp' ? 'border-green-400 shadow-md' : 'border-transparent'}`}
+              </button>
+              <button
                 onClick={() => setSelectedMethod('sbp')}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  selectedMethod === 'sbp'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-blue-300'
+                }`}
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800 text-lg">СБП</h3>
-                    <p className="text-sm text-gray-500">Быстрый перевод по номеру телефона</p>
-                  </div>
+                <div className="flex flex-col items-center">
+                  <svg className="w-8 h-8 mb-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M12 6V12L16 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="text-sm font-medium">СБП</span>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
-          {selectedMethod === 'sbp' && amount < 1000 && (
-            <div className="text-center text-red-500 font-medium mb-4">
-              ⚠️ Оплата через СБП доступна только для сумм от 1000₽ и выше.
-            </div>
-          )}
-          <Button
-            variant="contained"
-            color="primary"
-            fullWidth
-            size="large"
-            style={{ marginBottom: 16, fontWeight: 600, fontSize: '1.15rem', letterSpacing: '0.02em', borderRadius: '0.75rem', boxShadow: '0 2px 8px 0 rgba(60,60,120,0.08)' }}
+          <button
             onClick={handlePay}
-            disabled={processing || (selectedMethod === 'sbp' && amount < 1000)}
+            disabled={processing}
+            className={`w-full py-4 px-6 rounded-xl text-white font-semibold text-lg transition-all ${
+              processing
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
+            }`}
           >
-            {selectedMethod === 'sbp' ? 'Оплатить через СБП' : 'Оплатить картой'}
-          </Button>
-          {error && (
-            <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm text-center">
-              {error}
-            </div>
-          )}
+            {processing ? (
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Обработка...
+              </div>
+            ) : (
+              'Оплатить'
+            )}
+          </button>
         </div>
       </div>
       {showPaymentOverlay && paymentDetails && (
@@ -172,63 +172,88 @@ const Payment = () => {
               &times;
             </button>
             <div className="overflow-y-auto px-2 sm:px-0 pt-2 pb-4 flex-1">
-              <h2 className="text-2xl font-bold mb-4 text-center text-gray-800">Оплата через СБП</h2>
+              <h2 className="text-2xl font-bold mb-4 text-center text-gray-800">
+                {selectedMethod === 'sbp' ? 'Оплата через СБП' : 'Оплата картой'}
+              </h2>
               <div className="mb-4">
                 <div className="mb-4 text-center">
                   <p className="text-gray-500 mb-2">Сумма к оплате:</p>
                   <p className="text-2xl font-bold text-gray-800">{amount} ₽</p>
                 </div>
-                <div className="mb-4">
-                  <p className="text-sm text-gray-500 mb-2">Для оплаты:</p>
-                  <ol className="list-decimal list-inside text-gray-700 space-y-2">
-                    <li>Откройте приложение вашего банка</li>
-                    <li>Выберите оплату по QR-коду или СБП</li>
-                    <li>Отсканируйте QR-код или введите данные получателя</li>
-                    <li>Проверьте сумму и подтвердите оплату</li>
-                  </ol>
-                </div>
+                {selectedMethod === 'sbp' ? (
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-500 mb-2">Для оплаты:</p>
+                    <ol className="list-decimal list-inside text-gray-700 space-y-2">
+                      <li>Откройте приложение вашего банка</li>
+                      <li>Выберите оплату по QR-коду или СБП</li>
+                      <li>Отсканируйте QR-код или введите данные получателя</li>
+                      <li>Проверьте сумму и подтвердите оплату</li>
+                    </ol>
+                  </div>
+                ) : (
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-500 mb-2">Для оплаты картой:</p>
+                    <ol className="list-decimal list-inside text-gray-700 space-y-2">
+                      <li>Введите данные вашей карты</li>
+                      <li>Проверьте сумму платежа</li>
+                      <li>Подтвердите оплату</li>
+                    </ol>
+                  </div>
+                )}
                 {(paymentDetails.sbpUrl || paymentDetails.paymentUrl) && (
                   <div className="mb-4 text-center">
-                    <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(paymentDetails.sbpUrl || paymentDetails.paymentUrl)}`}
-                    alt="QR Code"
-                    className="mx-auto w-56 h-56 rounded-xl border border-gray-200 shadow"
-                   />
-                  <div className="text-xs text-gray-500 mt-2">
-                  Отсканируйте QR-код в вашем банковском приложении
+                    {selectedMethod === 'sbp' ? (
+                      <>
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(paymentDetails.sbpUrl || paymentDetails.paymentUrl)}`}
+                          alt="QR Code"
+                          className="mx-auto w-56 h-56 rounded-xl border border-gray-200 shadow"
+                        />
+                        <div className="text-xs text-gray-500 mt-2">
+                          Отсканируйте QR-код в вашем банковском приложении
+                        </div>
+                      </>
+                    ) : (
+                      <iframe
+                        src={paymentDetails.paymentUrl}
+                        className="w-full h-[500px] border-0 rounded-xl"
+                        title="Payment Form"
+                      />
+                    )}
                   </div>
-                </div>
                 )}
               </div>
             </div>
             <div className="flex flex-col items-center gap-2 p-2 pt-0 bg-white border-t border-gray-100 sticky bottom-0 z-10">
-              <button
-                className="w-full bg-green-600 text-white py-3 px-4 rounded-xl hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-lg font-semibold transition-all"
-                onClick={() => {
-                  setWaitingForConfirmation(true);
-                  setConfirmationTimeout(false);
-                  const pollInterval = setInterval(async () => {
-                    try {
-                      const response = await API.get(`/admin/orders/public/public/${orderId}/status`);
-                      if (response.data.status === 'paid') {
-                        clearInterval(pollInterval);
-                        setWaitingForConfirmation(false);
-                        window.location.href = '/success';
+              {selectedMethod === 'sbp' && (
+                <button
+                  className="w-full bg-green-600 text-white py-3 px-4 rounded-xl hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-lg font-semibold transition-all"
+                  onClick={() => {
+                    setWaitingForConfirmation(true);
+                    setConfirmationTimeout(false);
+                    const pollInterval = setInterval(async () => {
+                      try {
+                        const response = await API.get(`/admin/orders/public/public/${orderId}/status`);
+                        if (response.data.status === 'paid') {
+                          clearInterval(pollInterval);
+                          setWaitingForConfirmation(false);
+                          window.location.href = '/success';
+                        }
+                      } catch (err) {
+                        console.error('Error polling payment status:', err);
                       }
-                    } catch (err) {
-                      console.error('Error polling payment status:', err);
-                    }
-                  }, 5000);
-                  setTimeout(() => {
-                    clearInterval(pollInterval);
-                    setWaitingForConfirmation(false);
-                    setConfirmationTimeout(true);
-                  }, 120000);
-                  setShowPaymentOverlay(false);
-                }}
-              >
-                Я оплатил(а)
-              </button>
+                    }, 5000);
+                    setTimeout(() => {
+                      clearInterval(pollInterval);
+                      setWaitingForConfirmation(false);
+                      setConfirmationTimeout(true);
+                    }, 120000);
+                    setShowPaymentOverlay(false);
+                  }}
+                >
+                  Я оплатил(а)
+                </button>
+              )}
               <button
                 className="w-full bg-gray-200 text-gray-700 py-3 px-4 rounded-xl hover:bg-gray-300 mt-2 text-lg font-semibold transition-all"
                 onClick={() => setShowPaymentOverlay(false)}

@@ -299,7 +299,7 @@ router.get('/fail', async (req, res) => {
 
 // Freekassa payment link generator endpoint
 router.post('/link', async (req, res) => {
-  const { orderId, amount } = req.body;
+  const { orderId, amount, paymentMethod } = req.body;
   const merchantId = process.env.FREEKASSA_MERCHANT_ID;
   const secretWord1 = process.env.FREEKASSA_SECRET_1;
   const currency = 'RUB'; // Must match merchant settings
@@ -335,6 +335,11 @@ router.post('/link', async (req, res) => {
     s: signature,
     currency: currency
   });
+
+  // Add payment method parameter if specified
+  if (paymentMethod === 'card') {
+    params.append('i', '1'); // 1 is the ID for bank card payments in Freekassa
+  }
 
   // Use the correct Freekassa payment URL (per docs)
   const link = `https://pay.fk.money/?${params.toString()}`;
