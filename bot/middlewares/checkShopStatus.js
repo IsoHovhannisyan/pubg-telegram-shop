@@ -34,7 +34,7 @@ async function getShopStatus() {
   }
 }
 
-module.exports = async function checkShopStatus(ctx, next) {
+async function checkShopStatus(ctx, next) {
   // Skip check for admin commands
   if (ctx.message?.text?.startsWith('/admin')) {
     return next();
@@ -65,4 +65,7 @@ module.exports = async function checkShopStatus(ctx, next) {
 
   // Continue if all checks pass
   return next();
-}; 
+}
+
+module.exports = checkShopStatus;
+module.exports.getShopStatus = getShopStatus; 

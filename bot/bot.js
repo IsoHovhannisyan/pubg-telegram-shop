@@ -25,8 +25,8 @@ const { handleUserIdSubmission } = require('./handlers/sendOrderToCorrectTarget'
 const costumesHandler = require('./handlers/xcostumes');
 const referralsHandler = require('./handlers/referrals');
 const checkShopStatus = require('./middlewares/checkShopStatus');
+const { getShopStatus } = require('./middlewares/checkShopStatus');
 const getLang = require('./utils/getLang');
-const getShopStatus = require('./middlewares/checkShopStatus').getShopStatus || require('./middlewares/checkShopStatus');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -49,7 +49,7 @@ bot.command('orders', orderHandler);
 bot.hears(async (text, ctx) => {
   const lang = await getLang(ctx);
   if (text === lang.menu.shop || text === lang.menu.catalog) {
-    const status = await require('./middlewares/checkShopStatus').getShopStatus();
+    const status = await getShopStatus();
     const buttons = [
       [Markup.button.callback('💎 UC', 'open_uc_catalog')],
       [Markup.button.callback('📈 Популярность', 'open_popularity_catalog')]
@@ -122,7 +122,7 @@ bot.on('callback_query', async (ctx) => {
     } catch (err) {
       console.warn('⚠️ answerCbQuery error:', err.message);
     }
-    const status = await require('./middlewares/checkShopStatus').getShopStatus();
+    const status = await getShopStatus();
     const buttons = [
       [Markup.button.callback('💎 UC', 'open_uc_catalog')],
       [Markup.button.callback('📈 Популярность', 'open_popularity_catalog')]
@@ -173,8 +173,8 @@ bot.on('text', async (ctx) => {
 });
 
 // ▶️ Запуск бота (webhook support)
-const useWebhook = !!process.env.BOT_WEBHOOK_URL;
-// const useWebhook = false;
+// const useWebhook = !!process.env.BOT_WEBHOOK_URL;
+const useWebhook = false;
 if (useWebhook) {
   const webhookPath = '/webhook';
   const webhookUrl = process.env.BOT_WEBHOOK_URL + webhookPath;

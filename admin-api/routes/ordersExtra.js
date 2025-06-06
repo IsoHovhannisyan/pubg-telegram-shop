@@ -5,7 +5,7 @@ const db = require('../../bot/db/connect');
 userOrdersRouter.get('/user/:tgUserId', async (req, res) => {
   const { tgUserId } = req.params;
   try {
-    const result = await db.query('SELECT * FROM orders WHERE user_id = $1 ORDER BY time DESC', [tgUserId]);
+    const result = await db.query('SELECT * FROM orders WHERE user_id = $1 AND status != $2 ORDER BY time DESC', [tgUserId, 'unpaid']);
     res.json(result.rows);
   } catch (err) {
     console.error('User orders error:', err.message);

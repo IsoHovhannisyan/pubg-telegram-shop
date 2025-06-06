@@ -14,7 +14,10 @@ module.exports = async (ctx) => {
     const res = await axios.get(`${API_URL}/admin/orders/user/${userId}`, {
       headers: { Authorization: `Bearer ${API_TOKEN}` }
     });
-    const orders = res.data;
+    // Filter out unpaid orders and sort by most recent first (just in case)
+    const orders = res.data
+      .filter(order => order.status !== 'unpaid')
+      .sort((a, b) => new Date(b.time) - new Date(a.time));
 
     if (!orders.length) {
       return ctx.reply(
