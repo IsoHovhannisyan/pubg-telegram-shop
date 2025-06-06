@@ -85,22 +85,91 @@ const Payment = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      {/* Payment Overlay */}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 font-sans">
+      <div className="w-full max-w-md mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-8 text-center rounded-t-3xl border-b-4 border-indigo-200">
+          <h1 className="text-3xl font-extrabold text-white mb-1 tracking-tight drop-shadow">Оплата заказа</h1>
+          <p className="text-indigo-100 text-lg">Заказ #{orderId}</p>
+        </div>
+        <div className="p-8 sm:p-10">
+          <div className="mb-8 text-center">
+            <p className="text-gray-400 mb-1 text-base">Сумма к оплате</p>
+            <p className="text-4xl font-extrabold text-gray-800 tracking-wide">{amount} ₽</p>
+          </div>
+          <div className="space-y-6 mb-8">
+            <h2 className="text-lg font-semibold text-gray-700 mb-2">Выберите способ оплаты</h2>
+            <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+              <div
+                className={`flex-1 bg-gray-50 rounded-xl p-5 hover:bg-blue-50 cursor-pointer transition-all border-2 ${selectedMethod === 'card' ? 'border-blue-400 shadow-md' : 'border-transparent'}`}
+                onClick={() => setSelectedMethod('card')}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800 text-lg">Банковские карты</h3>
+                    <p className="text-sm text-gray-500">Visa, Mastercard, МИР</p>
+                  </div>
+                </div>
+              </div>
+              <div
+                className={`flex-1 bg-gray-50 rounded-xl p-5 hover:bg-green-50 cursor-pointer transition-all border-2 ${selectedMethod === 'sbp' ? 'border-green-400 shadow-md' : 'border-transparent'}`}
+                onClick={() => setSelectedMethod('sbp')}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800 text-lg">СБП</h3>
+                    <p className="text-sm text-gray-500">Быстрый перевод по номеру телефона</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {selectedMethod === 'sbp' && amount < 1000 && (
+            <div className="text-center text-red-500 font-medium mb-4">
+              ⚠️ Оплата через СБП доступна только для сумм от 1000₽ и выше.
+            </div>
+          )}
+          <Button
+            variant="contained"
+            color="primary"
+            fullWidth
+            size="large"
+            style={{ marginBottom: 16, fontWeight: 600, fontSize: '1.15rem', letterSpacing: '0.02em', borderRadius: '0.75rem', boxShadow: '0 2px 8px 0 rgba(60,60,120,0.08)' }}
+            onClick={handlePay}
+            disabled={processing || (selectedMethod === 'sbp' && amount < 1000)}
+          >
+            {selectedMethod === 'sbp' ? 'Оплатить через СБП' : 'Оплатить картой'}
+          </Button>
+          {error && (
+            <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm text-center">
+              {error}
+            </div>
+          )}
+        </div>
+      </div>
       {showPaymentOverlay && paymentDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full relative">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full relative border border-gray-200 animate-fade-in">
             <button
               className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-2xl"
               onClick={() => setShowPaymentOverlay(false)}
-              aria-label="Close"
+              aria-label="Закрыть"
             >
               &times;
             </button>
-            <h2 className="text-xl font-bold mb-4 text-center">Оплата через СБП</h2>
+            <h2 className="text-2xl font-bold mb-4 text-center text-gray-800">Оплата через СБП</h2>
             <div className="mb-4">
               <div className="mb-4 text-center">
-                <p className="text-gray-600 mb-2">Сумма к оплате:</p>
+                <p className="text-gray-500 mb-2">Сумма к оплате:</p>
                 <p className="text-2xl font-bold text-gray-800">{amount} ₽</p>
               </div>
               <div className="mb-4">
@@ -114,10 +183,10 @@ const Payment = () => {
               </div>
               {paymentDetails.paymentUrl && (
                 <div className="mb-4 text-center">
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(paymentDetails.paymentUrl)}`} 
-                    alt="QR Code" 
-                    className="mx-auto w-48 h-48"
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(paymentDetails.paymentUrl)}`}
+                    alt="QR Code"
+                    className="mx-auto w-56 h-56 rounded-xl border border-gray-200 shadow"
                   />
                   <div className="text-xs text-gray-500 mt-2">
                     Отсканируйте QR-код в вашем банковском приложении
@@ -127,10 +196,9 @@ const Payment = () => {
             </div>
             <div className="flex flex-col items-center gap-2 mt-4">
               <button
-                className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                className="w-full bg-green-600 text-white py-3 px-4 rounded-xl hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-lg font-semibold transition-all"
                 onClick={() => {
                   setShowPaymentOverlay(false);
-                  // Start polling for payment status
                   const pollInterval = setInterval(async () => {
                     try {
                       const response = await API.get(`/admin/orders/public/public/${orderId}/status`);
@@ -141,16 +209,14 @@ const Payment = () => {
                     } catch (err) {
                       console.error('Error polling payment status:', err);
                     }
-                  }, 5000); // Poll every 5 seconds
-                  
-                  // Clear interval after 5 minutes
+                  }, 5000);
                   setTimeout(() => clearInterval(pollInterval), 300000);
                 }}
               >
                 Я оплатил(а)
               </button>
               <button
-                className="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 mt-2"
+                className="w-full bg-gray-200 text-gray-700 py-3 px-4 rounded-xl hover:bg-gray-300 mt-2 text-lg font-semibold transition-all"
                 onClick={() => setShowPaymentOverlay(false)}
               >
                 Отмена
@@ -159,92 +225,6 @@ const Payment = () => {
           </div>
         </div>
       )}
-
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-8 text-center">
-            <h1 className="text-2xl font-bold text-white mb-2">Оплата заказа</h1>
-            <p className="text-blue-100">Заказ #{orderId}</p>
-          </div>
-
-          {/* Content */}
-          <div className="p-6">
-            {/* Amount */}
-            <div className="mb-6 text-center">
-              <p className="text-gray-500 mb-2">Сумма к оплате</p>
-              <p className="text-3xl font-bold text-gray-800">{amount} ₽</p>
-            </div>
-
-            {/* Payment Methods */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-gray-700 mb-4">Выберите способ оплаты</h2>
-              
-              {/* Bank Cards */}
-              <div
-                className={`bg-gray-50 rounded-lg p-4 hover:bg-gray-100 cursor-pointer transition-colors ${selectedMethod === 'card' ? 'ring-2 ring-blue-400' : ''}`}
-                onClick={() => setSelectedMethod('card')}
-              >
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-800">Банковские карты</h3>
-                    <p className="text-sm text-gray-500">Visa, Mastercard, МИР</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* SBP */}
-              <div
-                className={`bg-gray-50 rounded-lg p-4 hover:bg-gray-100 cursor-pointer transition-colors ${selectedMethod === 'sbp' ? 'ring-2 ring-blue-400' : ''}`}
-                onClick={() => setSelectedMethod('sbp')}
-              >
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-800">СБП</h3>
-                    <p className="text-sm text-gray-500">Быстрый перевод по номеру телефона</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ... перед кнопками оплаты ... */}
-            {selectedMethod === 'sbp' && amount < 1000 && (
-              <div style={{ color: '#e53935', marginBottom: 16, fontWeight: 500, textAlign: 'center' }}>
-                ⚠️ Оплата через СБП доступна только для сумм от 1000₽ и выше.
-              </div>
-            )}
-
-            {/* ... кнопки оплаты ... */}
-            <Button
-              variant="contained"
-              color="primary"
-              fullWidth
-              style={{ marginBottom: 12 }}
-              onClick={handlePay}
-              disabled={processing || (selectedMethod === 'sbp' && amount < 1000)}
-            >
-              {selectedMethod === 'sbp' ? 'Оплатить через СБП' : 'Оплатить картой'}
-            </Button>
-
-            {/* Error Message */}
-            {error && (
-              <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
