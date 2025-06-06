@@ -15,6 +15,8 @@ const Payment = () => {
   const [selectedMethod, setSelectedMethod] = useState('card');
   const [paymentDetails, setPaymentDetails] = useState(null);
   const [showPaymentOverlay, setShowPaymentOverlay] = useState(false);
+  const [waitingForConfirmation, setWaitingForConfirmation] = useState(false);
+  const [confirmationTimeout, setConfirmationTimeout] = useState(false);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -200,19 +202,26 @@ const Payment = () => {
               <button
                 className="w-full bg-green-600 text-white py-3 px-4 rounded-xl hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-lg font-semibold transition-all"
                 onClick={() => {
-                  setShowPaymentOverlay(false);
+                  setWaitingForConfirmation(true);
+                  setConfirmationTimeout(false);
                   const pollInterval = setInterval(async () => {
                     try {
                       const response = await API.get(`/admin/orders/public/public/${orderId}/status`);
                       if (response.data.status === 'paid') {
                         clearInterval(pollInterval);
+                        setWaitingForConfirmation(false);
                         window.location.href = '/success';
                       }
                     } catch (err) {
                       console.error('Error polling payment status:', err);
                     }
                   }, 5000);
-                  setTimeout(() => clearInterval(pollInterval), 300000);
+                  setTimeout(() => {
+                    clearInterval(pollInterval);
+                    setWaitingForConfirmation(false);
+                    setConfirmationTimeout(true);
+                  }, 120000);
+                  setShowPaymentOverlay(false);
                 }}
               >
                 Я оплатил(а)
@@ -224,6 +233,41 @@ const Payment = () => {
                 Отмена
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {waitingForConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xs w-full p-8 flex flex-col items-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+            <div className="text-lg font-semibold text-gray-800 mb-2 text-center">Ожидаем подтверждения оплаты...</div>
+            <div className="text-gray-500 text-center text-sm mb-2">Обычно это занимает не более 1-2 минут.</div>
+          </div>
+        </div>
+      )}
+      {confirmationTimeout && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xs w-full p-8 flex flex-col items-center">
+            <div className="text-3xl mb-2">❗</div>
+            <div className="text-lg font-semibold text-gray-800 mb-2 text-center">Платёж пока не подтверждён</div>
+            <div className="text-gray-500 text-center text-sm mb-4">Если вы уже оплатили, пожалуйста, подождите ещё немного или обратитесь в поддержку.</div>
+            <button
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-xl hover:bg-blue-700 font-semibold mb-2"
+              onClick={() => {
+                setConfirmationTimeout(false);
+                setShowPaymentOverlay(true);
+              }}
+            >
+              Попробовать ещё раз
+            </button>
+            <a
+              href="https://t.me/YourManagerBot"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full block text-center bg-gray-200 text-gray-700 py-2 px-4 rounded-xl hover:bg-gray-300 font-semibold"
+            >
+              Связаться с поддержкой
+            </a>
           </div>
         </div>
       )}
