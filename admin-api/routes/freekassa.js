@@ -361,8 +361,8 @@ router.post('/sbp-link', async (req, res) => {
   const shopId = parseInt(process.env.FREEKASSA_MERCHANT_ID, 10);
   const apiKey = process.env.FREEKASSA_API_KEY;
   const currency = 'RUB';
-  const paymentSystemId = 42; // SBP
-  console.log('[SBP] Setting paymentSystemId (i) to', paymentSystemId);
+  const paymentSystemId = 1; // TEST: Set to 1 (bank card) instead of 42 (SBP)
+  console.log('[SBP TEST] Setting paymentSystemId (i) to', paymentSystemId, 'for test with i = 1');
 
   console.log('🔧 Environment Check:', {
     shopId,
