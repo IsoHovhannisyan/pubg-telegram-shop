@@ -46,14 +46,14 @@ const Payment = () => {
         console.log('[SBP][Frontend] Sending SBP payment request:', { endpoint, orderId, amount, email });
         const response = await axios.post(endpoint, { orderId, amount, email });
         console.log('[SBP][Frontend] Received SBP payment response:', response.data);
-        if (response.data && (response.data.sbpUrl || response.data.paymentUrl)) {
+        if (response.data && response.data.sbpUrl) {
           setPaymentDetails({
             ...response.data,
-            url: response.data.sbpUrl || response.data.paymentUrl
+            url: response.data.sbpUrl
           });
           setShowPaymentOverlay(true);
         } else {
-          setError('Failed to get SBP payment details');
+          setError('Ошибка: SBP ссылка не получена');
         }
       } else {
         endpoint = `${process.env.REACT_APP_API_URL}/freekassa/link`;
@@ -202,27 +202,31 @@ const Payment = () => {
                     </ol>
                   </div>
                 )}
-                {(paymentDetails.sbpUrl || paymentDetails.paymentUrl) && (
-                  <div className="mb-4 text-center">
-                    {selectedMethod === 'sbp' ? (
-                      <>
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(paymentDetails.sbpUrl || paymentDetails.paymentUrl)}`}
-                          alt="QR Code"
-                          className="mx-auto w-56 h-56 rounded-xl border border-gray-200 shadow"
-                        />
-                        <div className="text-xs text-gray-500 mt-2">
-                          Отсканируйте QR-код в вашем банковском приложении
-                        </div>
-                      </>
-                    ) : (
+                {(selectedMethod === 'sbp') ? (
+                  paymentDetails && paymentDetails.sbpUrl ? (
+                    <div className="mb-4 text-center">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(paymentDetails.sbpUrl)}`}
+                        alt="QR Code"
+                        className="mx-auto w-56 h-56 rounded-xl border border-gray-200 shadow"
+                      />
+                      <div className="text-xs text-gray-500 mt-2">
+                        Отсканируйте QR-код в вашем банковском приложении
+                      </div>
+                    </div>
+                  ) : error ? (
+                    <div className="text-red-500 text-center">{error}</div>
+                  ) : null
+                ) : (
+                  paymentDetails && paymentDetails.paymentUrl && (
+                    <div className="mb-4 text-center">
                       <iframe
                         src={paymentDetails.paymentUrl}
                         className="w-full h-[500px] border-0 rounded-xl"
                         title="Payment Form"
                       />
-                    )}
-                  </div>
+                    </div>
+                  )
                 )}
               </div>
             </div>
