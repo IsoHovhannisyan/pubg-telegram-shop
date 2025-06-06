@@ -23,7 +23,15 @@ router.get("/shop-status", verifyToken, async (req, res) => {
 
 // 📤 Թարմացնել կարգավորումները
 router.post("/shop-status", verifyToken, async (req, res) => {
-  const { shop_open, orders_enabled, shop_closed_message, orders_disabled_message, shop_closed_custom_message } = req.body;
+  const { 
+    shop_open, 
+    orders_enabled, 
+    shop_closed_message, 
+    orders_disabled_message, 
+    shop_closed_custom_message,
+    x_costumes_enabled,
+    cars_enabled 
+  } = req.body;
 
   try {
     await db.query(
@@ -32,14 +40,18 @@ router.post("/shop-status", verifyToken, async (req, res) => {
         orders_enabled = $2,
         shop_closed_message = $3,
         orders_disabled_message = $4,
-        shop_closed_custom_message = $5
+        shop_closed_custom_message = $5,
+        x_costumes_enabled = $6,
+        cars_enabled = $7
       WHERE id = 1`,
       [
         Boolean(shop_open),
         Boolean(orders_enabled),
         shop_closed_message || "🛠 Магазин временно закрыт.",
         orders_disabled_message || "❗️Извините, заказы временно не принимаются.",
-        shop_closed_custom_message || null
+        shop_closed_custom_message || null,
+        Boolean(x_costumes_enabled),
+        Boolean(cars_enabled)
       ]
     );
     res.json({ success: true });

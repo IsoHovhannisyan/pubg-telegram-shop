@@ -4,12 +4,17 @@ const { Markup } = require('telegraf');
 const axios = require('axios');
 const userSelections = require('../utils/userSelections');
 const getLang = require('../utils/getLang');
+const getShopStatus = require('../middlewares/checkShopStatus').getShopStatus;
 
 const API_URL = process.env.API_URL || 'http://localhost:3001';
 
 // 📌 Step 1: Show all costumes
 module.exports = async (ctx) => {
   const lang = await getLang(ctx);
+  const status = await getShopStatus();
+  if (status && status.x_costumes_enabled === false) {
+    return ctx.reply('🎭 X-Костюмы временно недоступны.');
+  }
   let costumes = [];
   try {
     const res = await axios.get(`${API_URL}/products?category=costumes&status=active`);
@@ -33,8 +38,12 @@ module.exports = async (ctx) => {
 
 // 📌 Step 2: Show costume details
 module.exports.callbackQuery = async (ctx) => {
-  const selected = ctx.callbackQuery.data;
+  const status = await getShopStatus();
   const lang = await getLang(ctx);
+  if (status && status.x_costumes_enabled === false) {
+    return ctx.answerCbQuery('🎭 X-Костюмы временно недоступны.', { show_alert: true });
+  }
+  const selected = ctx.callbackQuery.data;
 
   if (selected.startsWith('show_costume_')) {
     const productId = selected.split('_')[2];

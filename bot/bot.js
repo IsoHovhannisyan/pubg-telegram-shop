@@ -25,8 +25,8 @@ const { handleUserIdSubmission } = require('./handlers/sendOrderToCorrectTarget'
 const costumesHandler = require('./handlers/xcostumes');
 const referralsHandler = require('./handlers/referrals');
 const checkShopStatus = require('./middlewares/checkShopStatus');
-
 const getLang = require('./utils/getLang');
+const getShopStatus = require('./middlewares/checkShopStatus').getShopStatus || require('./middlewares/checkShopStatus');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -48,16 +48,20 @@ bot.command('orders', orderHandler);
 // 🔁 Обработка кнопок меню
 bot.hears(async (text, ctx) => {
   const lang = await getLang(ctx);
-
   if (text === lang.menu.shop || text === lang.menu.catalog) {
-    return ctx.reply(lang.catalog.selectCategory || "📦 Выберите категорию", Markup.inlineKeyboard([
+    const status = await require('./middlewares/checkShopStatus').getShopStatus();
+    const buttons = [
       [Markup.button.callback('💎 UC', 'open_uc_catalog')],
-      [Markup.button.callback('📈 Популярность', 'open_popularity_catalog')],
-      [Markup.button.callback('🚗 Машины', 'category:cars')],
-      [Markup.button.callback('🎭 X-Костюмы', 'category:xcostumes')]
-    ]));
+      [Markup.button.callback('📈 Популярность', 'open_popularity_catalog')]
+    ];
+    if (!status || status.cars_enabled === undefined || status.cars_enabled) {
+      buttons.push([Markup.button.callback('🚗 Машины', 'category:cars')]);
+    }
+    if (!status || status.x_costumes_enabled === undefined || status.x_costumes_enabled) {
+      buttons.push([Markup.button.callback('🎭 X-Костюмы', 'category:xcostumes')]);
+    }
+    return ctx.reply(lang.catalog.selectCategory || "📦 Выберите категорию", Markup.inlineKeyboard(buttons));
   }
-
   if (text === lang.menu.cart) return cartHandler.showCart(ctx);
   if (text === lang.menu.orders) return orderHandler(ctx);
   if (text === lang.menu.referrals) return referralsHandler(ctx);
@@ -118,13 +122,18 @@ bot.on('callback_query', async (ctx) => {
     } catch (err) {
       console.warn('⚠️ answerCbQuery error:', err.message);
     }
-
-    return ctx.reply(lang.catalog?.selectCategory || "📦 Выберите категорию", Markup.inlineKeyboard([
+    const status = await require('./middlewares/checkShopStatus').getShopStatus();
+    const buttons = [
       [Markup.button.callback('💎 UC', 'open_uc_catalog')],
-      [Markup.button.callback('📈 Популярность', 'open_popularity_catalog')],
-      [Markup.button.callback('🚗 Машины', 'category:cars')],
-      [Markup.button.callback('🎭 X-Костюмы', 'category:xcostumes')]
-    ]));
+      [Markup.button.callback('📈 Популярность', 'open_popularity_catalog')]
+    ];
+    if (!status || status.cars_enabled === undefined || status.cars_enabled) {
+      buttons.push([Markup.button.callback('🚗 Машины', 'category:cars')]);
+    }
+    if (!status || status.x_costumes_enabled === undefined || status.x_costumes_enabled) {
+      buttons.push([Markup.button.callback('🎭 X-Костюмы', 'category:xcostumes')]);
+    }
+    return ctx.reply(lang.catalog?.selectCategory || "📦 Выберите категорию", Markup.inlineKeyboard(buttons));
   }
 
   // ✅ Callback-и товаров

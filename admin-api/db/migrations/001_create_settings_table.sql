@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS settings (
   orders_enabled BOOLEAN DEFAULT true,
   shop_closed_message TEXT DEFAULT "🛠 Магазин временно недоступен.",
   orders_disabled_message TEXT DEFAULT "❗️Извините, в данный момент заказы недоступны.",
+  x_costumes_enabled BOOLEAN DEFAULT true,
+  cars_enabled BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

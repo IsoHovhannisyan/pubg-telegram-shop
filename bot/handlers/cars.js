@@ -2,12 +2,17 @@ const { Markup } = require('telegraf');
 const axios = require('axios');
 const userSelections = require('../utils/userSelections');
 const getLang = require('../utils/getLang');
+const getShopStatus = require('../middlewares/checkShopStatus').getShopStatus;
 
 const API_URL = process.env.API_URL || 'http://localhost:3001';
 
 // 📌 Step 1: Show all cars as buttons only
 module.exports = async (ctx) => {
   const lang = await getLang(ctx);
+  const status = await getShopStatus();
+  if (status && status.cars_enabled === false) {
+    return ctx.reply('🚗 Машины временно недоступны.');
+  }
   let cars = [];
   try {
     const res = await axios.get(`${API_URL}/products?category=cars&status=active`);
@@ -15,11 +20,11 @@ module.exports = async (ctx) => {
       .sort((a, b) => a.price - b.price);
   } catch (err) {
     console.error('❌ Failed to load cars from API:', err.message);
-    return ctx.reply("❌ Մեքենաներ այս պահին հասանելի չեն։");
+    return ctx.reply("❌ Мaшины сейчас недоступны.");
   }
 
   if (!cars.length) {
-    return ctx.reply("❌ Մեքենաներ այս պահին հասանելի չեն։");
+    return ctx.reply("❌ Мaшины сейчас недоступны.");
   }
 
   const buttons = cars.map(car =>
@@ -31,8 +36,12 @@ module.exports = async (ctx) => {
 
 // 📌 Step 2: When clicking a specific car button, show image + caption + add to cart
 module.exports.callbackQuery = async (ctx) => {
-  const selected = ctx.callbackQuery.data;
+  const status = await getShopStatus();
   const lang = await getLang(ctx);
+  if (status && status.cars_enabled === false) {
+    return ctx.answerCbQuery('🚗 Машины временно недоступны.', { show_alert: true });
+  }
+  const selected = ctx.callbackQuery.data;
 
   if (selected.startsWith('show_car_')) {
     const productId = selected.split('_')[2];
