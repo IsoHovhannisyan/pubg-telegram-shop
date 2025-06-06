@@ -107,7 +107,7 @@ export default function Referrals() {
                 <ul className="w-full text-sm text-gray-700 space-y-2 mt-2">
                   {referrals
                     .slice()
-                    .sort((a, b) => (b.level1_referrals || 0) - (a.level1_referrals || 0))
+                    .sort((a, b) => (b.referral_points || 0) - (a.referral_points || 0))
                     .slice(0, 3)
                     .map((r, i) => (
                       <li key={i} className={`flex items-center justify-between gap-4 p-3 rounded-lg ${i === 0 ? 'border border-yellow-200 bg-yellow-50' : 'border border-gray-100 bg-gray-50'}`}>
