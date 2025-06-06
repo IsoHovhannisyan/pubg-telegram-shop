@@ -42,6 +42,12 @@ app.post('/api/create-payment', async (req, res) => {
     });
     const data = await response.json();
     console.log('Freekassa API response:', data);
+
+    if (!data.location) {
+        // Return error to frontend
+        return res.status(400).json({ error: data.message || 'Ошибка создания платежа', details: data });
+    }
+
     res.json(data);
 });
 

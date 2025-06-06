@@ -13,7 +13,7 @@
 <body>
   <div class="pay-box">
     <h2>Оплата через СБП</h2>
-    <div id="amount">Сумма: 1000 ₽</div>
+    <div id="amount">Сумма: 2000 ₽</div>
     <div id="qr"></div>
     <button id="payBtn">Перейти к оплате</button>
   </div>
@@ -22,7 +22,7 @@
     fetch('http://localhost:3002/api/create-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: 1000 })
+      body: JSON.stringify({ amount: 2000 })
     })
     .then(res => res.json())
     .then(data => {

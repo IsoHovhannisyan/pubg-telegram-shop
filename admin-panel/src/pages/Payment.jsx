@@ -44,8 +44,11 @@ const Payment = () => {
         endpoint = `${process.env.REACT_APP_API_URL}/freekassa/sbp-link`;
         const email = order && order.email ? order.email : 'test@yourshop.com';
         const response = await axios.post(endpoint, { orderId, amount, email });
-        if (response.data && response.data.paymentUrl) {
-          setPaymentDetails(response.data);
+        if (response.data && (response.data.sbpUrl || response.data.paymentUrl)) {
+          setPaymentDetails({
+            ...response.data,
+            url: response.data.sbpUrl || response.data.paymentUrl // ✅ Ահա այստեղ ենք օգտագործում ճիշտ հղումը
+          });
           setShowPaymentOverlay(true);
         } else {
           setError('Failed to get SBP payment details');
@@ -184,17 +187,17 @@ const Payment = () => {
                     <li>Проверьте сумму и подтвердите оплату</li>
                   </ol>
                 </div>
-                {paymentDetails.paymentUrl && (
+                {(paymentDetails.sbpUrl || paymentDetails.paymentUrl) && (
                   <div className="mb-4 text-center">
                     <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(paymentDetails.paymentUrl)}`}
-                      alt="QR Code"
-                      className="mx-auto w-56 h-56 rounded-xl border border-gray-200 shadow"
-                    />
-                    <div className="text-xs text-gray-500 mt-2">
-                      Отсканируйте QR-код в вашем банковском приложении
-                    </div>
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(paymentDetails.sbpUrl || paymentDetails.paymentUrl)}`}
+                    alt="QR Code"
+                    className="mx-auto w-56 h-56 rounded-xl border border-gray-200 shadow"
+                   />
+                  <div className="text-xs text-gray-500 mt-2">
+                  Отсканируйте QR-код в вашем банковском приложении
                   </div>
+                </div>
                 )}
               </div>
             </div>

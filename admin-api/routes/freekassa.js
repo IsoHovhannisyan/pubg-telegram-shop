@@ -447,13 +447,13 @@ router.post('/sbp-link', async (req, res) => {
     });
 
     if (response.data && response.data.type === 'success' && response.data.location) {
-      // Get payment details from the response
       const paymentDetails = {
-        paymentUrl: response.data.location,
+        paymentUrl: response.data.location, // original Freekassa fmt.me URL
         orderId: response.data.orderId,
-        orderHash: response.data.orderHash
+        orderHash: response.data.orderHash,
+        sbpUrl: `https://payment.kassa.ai/?id=${response.data.orderId}&hash=${response.data.orderHash}` // ✅ NEW
       };
-
+    
       console.log('✅ Payment details generated:', paymentDetails);
       return res.json(paymentDetails);
     } else {
