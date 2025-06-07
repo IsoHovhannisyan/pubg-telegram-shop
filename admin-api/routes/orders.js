@@ -305,6 +305,8 @@ router.patch('/:id', verifyToken, async (req, res) => {
     // Build manager message based on status change
     let managerMessage = '';
     if (status === 'pending' && prevStatus === 'unpaid') {
+      // Check if this is an auto UC order
+      const isAutoUC = products.some(p => p.category === 'uc_by_id');
       managerMessage = `💰 <b>Новая оплата получена!</b>\n\n` +
         `ID заказа: <b>${order.id}</b>\n` +
         `🎮 PUBG ID: <code>${order.pubg_id}</code>\n` +
@@ -312,7 +314,7 @@ router.patch('/:id', verifyToken, async (req, res) => {
         `${userInfo ? `🆔 Telegram: <b>${order.user_id}</b> ${userInfo.username ? `(@${userInfo.username})` : ''}\n` : ''}` +
         `${categorySection}\n\n` +
         `💰 Общая сумма: ${products.reduce((sum, p) => sum + (p.price * p.qty), 0)} ₽\n` +
-        `⚠️ Требуется активация!`;
+        (isAutoUC ? '⚙️ Автоактивация в процессе...' : '⚠️ Требуется активация!');
     } else if (status === 'error') {
       managerMessage = `❌ <b>Ошибка активации заказа!</b>\n\n` +
         `ID заказа: <b>${order.id}</b>\n` +
